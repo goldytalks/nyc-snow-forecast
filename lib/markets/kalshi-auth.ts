@@ -154,16 +154,26 @@ export async function getKalshiPositionsWithStatus(): Promise<{
 
     console.log("[Kalshi Auth] Positions response:", JSON.stringify(data).substring(0, 200));
 
-    const positions = (data.market_positions || []).map((pos: any) => ({
-      ticker: pos.ticker,
-      event_ticker: pos.event_ticker,
-      market_title: pos.market_title || pos.ticker,
-      position: pos.position,
-      average_price: pos.market_exposure / Math.abs(pos.position) / 100 || 0,
-      realized_pnl: pos.realized_pnl / 100 || 0,
-      unrealized_pnl: (pos.total_traded - pos.market_exposure) / 100 || 0,
-      total_cost: pos.market_exposure / 100 || 0,
-    }));
+    const positions = (data.market_positions || [])
+      .filter((pos: any) => pos.position !== 0) // Only include non-zero positions
+      .map((pos: any) => {
+        // Extract event_ticker from ticker (e.g., "KXSNOWSTORM-26JANNYC-10.0" -> "KXSNOWSTORM-26JANNYC")
+        const tickerParts = pos.ticker.split("-");
+        const eventTicker = tickerParts.length >= 2
+          ? tickerParts.slice(0, -1).join("-")
+          : pos.ticker;
+
+        return {
+          ticker: pos.ticker,
+          event_ticker: eventTicker,
+          market_title: pos.market_title || pos.ticker,
+          position: pos.position,
+          average_price: pos.market_exposure / Math.abs(pos.position) / 100 || 0,
+          realized_pnl: pos.realized_pnl / 100 || 0,
+          unrealized_pnl: (pos.total_traded - pos.market_exposure) / 100 || 0,
+          total_cost: pos.market_exposure / 100 || 0,
+        };
+      });
 
     return {
       positions,
@@ -289,9 +299,9 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
     const positionsResult = await getKalshiPositionsWithStatus();
     authStatus = positionsResult.authStatus;
 
-    // Filter positions for this event
+    // Filter positions for this event (by ticker prefix) and exclude zero positions
     const eventPositions = positionsResult.positions.filter(
-      (p) => p.event_ticker === EVENT_TICKER
+      (p) => p.ticker.startsWith(EVENT_TICKER) && p.position !== 0
     );
 
     // Fetch orderbooks for each market
