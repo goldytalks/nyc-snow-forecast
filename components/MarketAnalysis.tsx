@@ -66,6 +66,11 @@ interface Position {
   realized_pnl?: number;
 }
 
+interface AuthStatus {
+  authenticated: boolean;
+  error?: string;
+}
+
 interface MarketAPIResponse {
   timestamp: string;
   dataSource: "live" | "manual";
@@ -78,6 +83,7 @@ interface MarketAPIResponse {
     positions: Position[];
     orderbooks: Record<string, any>;
     marketsFound: number;
+    authStatus?: AuthStatus;
   };
   polymarket: {
     eventTitle: string;
@@ -272,6 +278,27 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Auth Status Alert */}
+          {liveData?.kalshi?.authStatus && !liveData.kalshi.authStatus.authenticated && (
+            <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <div className="flex items-center gap-2 text-sm text-amber-400">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="font-medium">Position tracking unavailable</span>
+              </div>
+              <p className="text-xs text-amber-400/70 mt-1">
+                {liveData.kalshi.authStatus.error || "API authentication failed"}
+                {liveData.kalshi.authStatus.error?.includes("signature") && (
+                  <span className="block mt-1">
+                    Generate a new API key at{" "}
+                    <a href="https://kalshi.com/settings/api" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-300">
+                      kalshi.com/settings/api
+                    </a>
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
           {/* Positions Section */}
           {liveData?.kalshi?.positions && liveData.kalshi.positions.length > 0 && (
             <div className="mb-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">

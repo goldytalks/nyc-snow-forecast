@@ -120,13 +120,27 @@ async function authenticatedRequest<T>(
  * Get user's portfolio/positions
  */
 export async function getKalshiPositions(): Promise<KalshiPosition[]> {
+  const result = await getKalshiPositionsWithStatus();
+  return result.positions;
+}
+
+/**
+ * Get positions with authentication status
+ */
+export async function getKalshiPositionsWithStatus(): Promise<{
+  positions: KalshiPosition[];
+  authStatus: { authenticated: boolean; error?: string };
+}> {
   try {
     const apiKeyId = process.env.KALSHI_API_KEY_ID;
     const privateKey = process.env.KALSHI_PRIVATE_KEY;
 
     if (!apiKeyId || !privateKey) {
-      console.log("[Kalshi Auth] API credentials not configured, skipping positions");
-      return [];
+      console.log("[Kalshi Auth] API credentials not configured");
+      return {
+        positions: [],
+        authStatus: { authenticated: false, error: "API credentials not configured" },
+      };
     }
 
     const data = await authenticatedRequest<{ market_positions: any[] }>(
@@ -136,7 +150,7 @@ export async function getKalshiPositions(): Promise<KalshiPosition[]> {
 
     console.log("[Kalshi Auth] Positions response:", JSON.stringify(data).substring(0, 200));
 
-    return (data.market_positions || []).map((pos: any) => ({
+    const positions = (data.market_positions || []).map((pos: any) => ({
       ticker: pos.ticker,
       event_ticker: pos.event_ticker,
       market_title: pos.market_title || pos.ticker,
@@ -146,10 +160,29 @@ export async function getKalshiPositions(): Promise<KalshiPosition[]> {
       unrealized_pnl: (pos.total_traded - pos.market_exposure) / 100 || 0,
       total_cost: pos.market_exposure / 100 || 0,
     }));
+
+    return {
+      positions,
+      authStatus: { authenticated: true },
+    };
   } catch (error: any) {
-    console.error("[Kalshi Auth] Failed to fetch positions:", error?.message || error);
-    // Return empty array but don't break the rest of the app
-    return [];
+    const errorMsg = error?.message || String(error);
+    console.error("[Kalshi Auth] Failed to fetch positions:", errorMsg);
+
+    // Check for specific auth errors
+    let authError = "Authentication failed";
+    if (errorMsg.includes("INCORRECT_API_KEY_SIGNATURE")) {
+      authError = "API key signature mismatch - please verify your API key pair";
+    } else if (errorMsg.includes("INVALID_API_KEY")) {
+      authError = "Invalid API key ID";
+    } else if (errorMsg.includes("401")) {
+      authError = "Authentication failed - check API credentials";
+    }
+
+    return {
+      positions: [],
+      authStatus: { authenticated: false, error: authError },
+    };
   }
 }
 
@@ -228,8 +261,10 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
   markets: KalshiMarketDetails[];
   positions: KalshiPosition[];
   orderbooks: Record<string, KalshiOrderbook>;
+  authStatus: { authenticated: boolean; error?: string };
 }> {
   const EVENT_TICKER = "KXSNOWSTORM-26JANNYC";
+  let authStatus: { authenticated: boolean; error?: string } = { authenticated: false };
 
   try {
     // Fetch markets for the event
@@ -246,11 +281,12 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
     const marketsData = await marketsResponse.json();
     const markets: KalshiMarketDetails[] = marketsData.markets || [];
 
-    // Fetch positions (authenticated)
-    const positions = await getKalshiPositions();
+    // Fetch positions (authenticated) - returns result with auth status
+    const positionsResult = await getKalshiPositionsWithStatus();
+    authStatus = positionsResult.authStatus;
 
     // Filter positions for this event
-    const eventPositions = positions.filter(
+    const eventPositions = positionsResult.positions.filter(
       (p) => p.event_ticker === EVENT_TICKER
     );
 
@@ -269,6 +305,7 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
       markets,
       positions: eventPositions,
       orderbooks,
+      authStatus,
     };
   } catch (error) {
     console.error("[Kalshi] Failed to fetch NYC snowstorm data:", error);
@@ -276,6 +313,7 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
       markets: [],
       positions: [],
       orderbooks: {},
+      authStatus: { authenticated: false, error: "Failed to fetch market data" },
     };
   }
 }

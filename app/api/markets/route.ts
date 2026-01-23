@@ -246,6 +246,7 @@ export async function GET() {
         positions: kalshiDetails.positions,
         orderbooks: kalshiDetails.orderbooks,
         marketsFound: formattedKalshiMarkets.length,
+        authStatus: kalshiDetails.authStatus || { authenticated: false },
       },
 
       // Polymarket data
