@@ -49,6 +49,7 @@ interface KalshiMarketDetails {
 
 /**
  * Generate authentication headers for Kalshi API
+ * Uses RSA-PSS signatures as per Kalshi documentation
  */
 function generateAuthHeaders(
   method: string,
@@ -56,21 +57,26 @@ function generateAuthHeaders(
   apiKeyId: string,
   privateKeyPem: string
 ): Record<string, string> {
-  const timestamp = Math.floor(Date.now() / 1000).toString();
+  // Timestamp in milliseconds
+  const timestamp = Date.now().toString();
 
-  // Message to sign: timestamp + method + path
-  const message = timestamp + method.toUpperCase() + path;
+  // Strip query parameters from path for signing
+  const pathWithoutQuery = path.split("?")[0];
 
-  // Sign with RSA-SHA256
-  const sign = crypto.createSign("RSA-SHA256");
-  sign.update(message);
-  sign.end();
+  // Message to sign: timestamp + method + path (without query params)
+  const message = timestamp + method.toUpperCase() + pathWithoutQuery;
 
-  const signature = sign.sign(privateKeyPem, "base64");
+  // Sign with RSA-PSS using SHA256
+  const privateKey = crypto.createPrivateKey(privateKeyPem);
+  const signature = crypto.sign("sha256", Buffer.from(message), {
+    key: privateKey,
+    padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+    saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST,
+  });
 
   return {
     "KALSHI-ACCESS-KEY": apiKeyId,
-    "KALSHI-ACCESS-SIGNATURE": signature,
+    "KALSHI-ACCESS-SIGNATURE": signature.toString("base64"),
     "KALSHI-ACCESS-TIMESTAMP": timestamp,
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -115,10 +121,20 @@ async function authenticatedRequest<T>(
  */
 export async function getKalshiPositions(): Promise<KalshiPosition[]> {
   try {
+    const apiKeyId = process.env.KALSHI_API_KEY_ID;
+    const privateKey = process.env.KALSHI_PRIVATE_KEY;
+
+    if (!apiKeyId || !privateKey) {
+      console.log("[Kalshi Auth] API credentials not configured, skipping positions");
+      return [];
+    }
+
     const data = await authenticatedRequest<{ market_positions: any[] }>(
       "GET",
       "/portfolio/positions"
     );
+
+    console.log("[Kalshi Auth] Positions response:", JSON.stringify(data).substring(0, 200));
 
     return (data.market_positions || []).map((pos: any) => ({
       ticker: pos.ticker,
@@ -130,8 +146,9 @@ export async function getKalshiPositions(): Promise<KalshiPosition[]> {
       unrealized_pnl: (pos.total_traded - pos.market_exposure) / 100 || 0,
       total_cost: pos.market_exposure / 100 || 0,
     }));
-  } catch (error) {
-    console.error("[Kalshi Auth] Failed to fetch positions:", error);
+  } catch (error: any) {
+    console.error("[Kalshi Auth] Failed to fetch positions:", error?.message || error);
+    // Return empty array but don't break the rest of the app
     return [];
   }
 }
