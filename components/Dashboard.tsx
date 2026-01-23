@@ -9,7 +9,7 @@ import { ModelComparison } from "@/components/ModelComparison";
 import { UncertaintyPanel } from "@/components/UncertaintyPanel";
 import { StatusIndicator } from "@/components/StatusIndicator";
 import { TimingPanel } from "@/components/TimingPanel";
-import { EdgeAnalysis } from "@/components/EdgeAnalysis";
+import { MarketAnalysis } from "@/components/MarketAnalysis";
 import { DataSourcesPanel } from "@/components/DataSourcesPanel";
 import { MapPin, Snowflake, RefreshCw } from "lucide-react";
 import type { ForecastData } from "@/lib/types";
@@ -76,6 +76,14 @@ export function Dashboard({ initialData }: DashboardProps) {
           <StrikeCards strikeProbabilities={data.strikeProbabilities} />
         </div>
 
+        {/* Market Analysis Section */}
+        <div className="animate-fade-in" style={{ animationDelay: "0.25s" }}>
+          <h2 className="text-lg font-medium mb-3 text-muted-foreground">
+            Market Analysis
+          </h2>
+          <MarketAnalysis strikeProbabilities={data.strikeProbabilities} />
+        </div>
+
         {/* Secondary Grid */}
         <div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in"
@@ -91,30 +99,24 @@ export function Dashboard({ initialData }: DashboardProps) {
           <TimingPanel timing={data.timing} />
         </div>
 
-        {/* Model vs Market Section */}
+        {/* Data Sources */}
         <div
           className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"
           style={{ animationDelay: "0.35s" }}
         >
-          {/* Edge Analysis */}
-          <EdgeAnalysis strikeProbabilities={data.strikeProbabilities} />
-
-          {/* Data Sources */}
           <DataSourcesPanel
             dataSources={data.dataSources}
             lastModelRun={data.modelRunTimestamp}
           />
-        </div>
 
-        {/* Uncertainties */}
-        <div className="animate-fade-in" style={{ animationDelay: "0.4s" }}>
+          {/* Uncertainties */}
           <UncertaintyPanel uncertainties={data.keyUncertainties} />
         </div>
 
         {/* Footer */}
         <footer
           className="text-center text-sm text-muted-foreground pt-8 border-t border-border animate-fade-in"
-          style={{ animationDelay: "0.5s" }}
+          style={{ animationDelay: "0.4s" }}
         >
           <p>
             Probabilistic forecast model for Central Park snowfall. Settlement
@@ -124,7 +126,8 @@ export function Dashboard({ initialData }: DashboardProps) {
             Data sources: NWS Point Forecast, NWS AFD, GFS, ECMWF, NAM
           </p>
           <p className="mt-2 text-xs text-muted-foreground/70">
-            Model updates every 15 minutes. Real-time via SSE connection.
+            Model is independent of market prices. Update market prices in
+            lib/markets/manual-prices.ts
           </p>
         </footer>
       </div>
