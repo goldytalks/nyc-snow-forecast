@@ -153,7 +153,8 @@ export async function GET() {
       markets: KalshiMarketDetails[];
       positions: KalshiPosition[];
       orderbooks: Record<string, KalshiOrderbook>;
-    } = { markets: [], positions: [], orderbooks: {} };
+      authStatus?: { authenticated: boolean; error?: string };
+    } = { markets: [], positions: [], orderbooks: {}, authStatus: { authenticated: false } };
 
     try {
       kalshiDetails = await getNYCSnowstormMarketsWithDetails();
