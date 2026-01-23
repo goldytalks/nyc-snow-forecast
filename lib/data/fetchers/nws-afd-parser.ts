@@ -24,9 +24,56 @@ export interface AFDExtraction {
 const NWS_USER_AGENT = "(nyc-snow-forecast, contact@example.com)";
 
 /**
- * Fetch the latest AFD from NWS
+ * Parse AFD timestamp format "637 AM EST Fri Jan 23 2026" to ISO
  */
-export async function fetchLatestAFD(): Promise<string> {
+function parseAFDTimestamp(timestamp: string): string | null {
+  try {
+    // Match: "637 AM EST Fri Jan 23 2026" or "1258 PM EST Thu Jan 23 2026"
+    const match = timestamp.match(/(\d{3,4})\s*([AP]M)\s*(\w+)\s+\w+\s+(\w+)\s+(\d{1,2})\s+(\d{4})/i);
+    if (!match) return null;
+
+    const [, time, ampm, _tz, month, day, year] = match;
+
+    // Parse time - "637" -> "6:37" or "1258" -> "12:58"
+    const timeStr = time.padStart(4, "0");
+    let hours = parseInt(timeStr.slice(0, 2));
+    const minutes = parseInt(timeStr.slice(2));
+
+    // Convert to 24-hour format
+    if (ampm.toUpperCase() === "PM" && hours !== 12) {
+      hours += 12;
+    } else if (ampm.toUpperCase() === "AM" && hours === 12) {
+      hours = 0;
+    }
+
+    // Parse month
+    const months: Record<string, number> = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    };
+    const monthNum = months[month.toLowerCase()];
+    if (monthNum === undefined) return null;
+
+    // Create date (EST is UTC-5)
+    const date = new Date(Date.UTC(
+      parseInt(year),
+      monthNum,
+      parseInt(day),
+      hours + 5, // Convert EST to UTC
+      minutes
+    ));
+
+    return date.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch the latest AFD from NWS
+ * Returns both the text and the issuance time from API metadata
+ */
+export async function fetchLatestAFD(): Promise<{ text: string; issuanceTime: string | null }> {
   // First, get the list of recent AFDs
   const listUrl = "https://api.weather.gov/products/types/AFD/locations/OKX";
 
@@ -63,16 +110,23 @@ export async function fetchLatestAFD(): Promise<string> {
   }
 
   const afdData = await afdResponse.json();
-  return afdData.productText || "";
+
+  // Use the issuanceTime from API metadata (proper ISO format)
+  return {
+    text: afdData.productText || "",
+    issuanceTime: afdData.issuanceTime || null,
+  };
 }
 
 /**
  * Parse AFD text to extract snowfall forecast parameters
+ * @param afdText - The raw AFD text
+ * @param issuanceTime - Optional ISO timestamp from API metadata
  */
-export function parseAFD(afdText: string): AFDExtraction {
+export function parseAFD(afdText: string, issuanceTime?: string | null): AFDExtraction {
   const extraction: AFDExtraction = {
     timestamp: new Date().toISOString(),
-    issueTime: null,
+    issueTime: issuanceTime || null,
     snowfallRange: { low: 0, high: 0, units: "inches" },
     localizedMax: null,
     mixingMentioned: false,
@@ -84,10 +138,12 @@ export function parseAFD(afdText: string): AFDExtraction {
     rawExcerpts: [],
   };
 
-  // Extract issue time
-  const issueMatch = afdText.match(/(\d{3,4}\s*[AP]M\s*\w+\s+\w+\s+\w+\s+\d{1,2}\s+\d{4})/i);
-  if (issueMatch) {
-    extraction.issueTime = issueMatch[1];
+  // If no issuance time from API, try to parse from text and convert to ISO
+  if (!extraction.issueTime) {
+    const issueMatch = afdText.match(/(\d{3,4})\s*([AP]M)\s*(\w+)\s+(\w+)\s+(\w+)\s+(\d{1,2})\s+(\d{4})/i);
+    if (issueMatch) {
+      extraction.issueTime = parseAFDTimestamp(issueMatch[0]);
+    }
   }
 
   // Extract snowfall range patterns
@@ -252,6 +308,6 @@ export function parseAFD(afdText: string): AFDExtraction {
  * Fetch and parse the latest AFD in one call
  */
 export async function fetchAndParseAFD(): Promise<AFDExtraction> {
-  const afdText = await fetchLatestAFD();
-  return parseAFD(afdText);
+  const { text, issuanceTime } = await fetchLatestAFD();
+  return parseAFD(text, issuanceTime);
 }

@@ -1,7 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Activity, Wifi, WifiOff } from "lucide-react";
+import { Clock, Wifi, WifiOff } from "lucide-react";
 
 interface StatusIndicatorProps {
   timestamp: string;
@@ -11,35 +12,31 @@ interface StatusIndicatorProps {
 }
 
 export function StatusIndicator({
-  timestamp,
   sources,
   isConnected = true,
-  lastUpdate,
 }: StatusIndicatorProps) {
-  // Use lastUpdate if available, otherwise fall back to timestamp
-  const displayTime = lastUpdate || new Date(timestamp);
-  const formattedTime = displayTime.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  // Start with null to avoid hydration mismatch
+  const [currentTime, setCurrentTime] = useState<string | null>(null);
 
-  // Calculate time since last update
-  const timeSinceUpdate = lastUpdate
-    ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000)
-    : null;
+  useEffect(() => {
+    // Set initial time on client only
+    const updateTime = () => {
+      setCurrentTime(
+        new Date().toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+          timeZoneName: "short",
+        })
+      );
+    };
 
-  const getTimeAgo = () => {
-    if (!timeSinceUpdate) return null;
-    if (timeSinceUpdate < 60) return "just now";
-    if (timeSinceUpdate < 3600)
-      return `${Math.floor(timeSinceUpdate / 60)}m ago`;
-    return `${Math.floor(timeSinceUpdate / 3600)}h ago`;
-  };
-
-  const timeAgo = getTimeAgo();
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -75,16 +72,11 @@ export function StatusIndicator({
         )}
       </div>
 
-      {/* Last Update Time */}
+      {/* Current Time (Real-time) */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Clock className="w-4 h-4" />
-        <span>
-          {formattedTime}
-          {timeAgo && (
-            <span className="text-xs ml-1 text-muted-foreground/70">
-              ({timeAgo})
-            </span>
-          )}
+        <span className="font-mono min-w-[180px]">
+          {currentTime || "Loading..."}
         </span>
       </div>
 

@@ -7,7 +7,9 @@
  * 2. Update the prices below (as percentages 0-100)
  * 3. Redeploy or refresh the page
  *
- * Last Updated: 2026-01-23 2:00 PM EST
+ * Polymarket: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
+ *
+ * Last Updated: 2026-01-23 2:57 PM EST
  */
 
 export interface MarketPrice {
@@ -23,6 +25,7 @@ export interface MarketPrice {
 
 // ============================================
 // KALSHI PRICES - Update these with current YES prices
+// https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc
 // ============================================
 export const KALSHI_PRICES: MarketPrice[] = [
   { threshold: 2, yesPrice: 97, source: "kalshi" },
@@ -36,15 +39,16 @@ export const KALSHI_PRICES: MarketPrice[] = [
 
 // ============================================
 // POLYMARKET PRICES - Update these with current YES prices
+// https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
 // ============================================
 export const POLYMARKET_PRICES: MarketPrice[] = [
-  { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 5, source: "polymarket", volume: 15273 },
-  { range: "4-6", rangeLow: 4, rangeHigh: 6, rangeType: "range", yesPrice: 8, source: "polymarket", volume: 6667 },
-  { range: "6-8", rangeLow: 6, rangeHigh: 8, rangeType: "range", yesPrice: 14, source: "polymarket", volume: 6156 },
-  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 18, source: "polymarket", volume: 7391 },
-  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 20, source: "polymarket", volume: 7810 },
-  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 15, source: "polymarket", volume: 6971 },
-  { range: "14+", rangeLow: 14, rangeHigh: null, rangeType: "over", yesPrice: 20, source: "polymarket", volume: 13030 },
+  { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 4, source: "polymarket", volume: 10145 },
+  { range: "4-6", rangeLow: 4, rangeHigh: 6, rangeType: "range", yesPrice: 2, source: "polymarket", volume: 10145 },
+  { range: "6-8", rangeLow: 6, rangeHigh: 8, rangeType: "range", yesPrice: 12, source: "polymarket", volume: 10145 },
+  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 17, source: "polymarket", volume: 10145 },
+  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 17, source: "polymarket", volume: 10145 },
+  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 20, source: "polymarket", volume: 10145 },
+  { range: "14+", rangeLow: 14, rangeHigh: null, rangeType: "over", yesPrice: 34, source: "polymarket", volume: 10145 },
 ];
 
 /**

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, CloudSnow, Droplets, CloudOff } from "lucide-react";
 import type { Timing } from "@/lib/types";
@@ -19,23 +20,41 @@ function formatTime(isoString: string): string {
 }
 
 export function TimingPanel({ timing }: TimingPanelProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const getDisplayTime = (isoString: string) => {
+    if (!isMounted) return "—";
+    return formatTime(isoString);
+  };
+
+  const getMixingWindowDisplay = () => {
+    if (!isMounted) return "—";
+    return `${formatTime(timing.mixingWindow[0])} - ${formatTime(timing.mixingWindow[1]).split(" ").slice(1).join(" ")}`;
+  };
+
   const events = [
     {
       icon: CloudSnow,
       label: "Snow Starts",
       time: timing.snowStarts,
       color: "text-blue-400",
+      isRange: false,
     },
     {
       icon: CloudSnow,
       label: "Heaviest Snow",
       time: timing.heaviestSnow,
       color: "text-emerald-400",
+      isRange: false,
     },
     {
       icon: Droplets,
       label: "Mixing Window",
-      time: `${formatTime(timing.mixingWindow[0])} - ${formatTime(timing.mixingWindow[1]).split(" ").slice(1).join(" ")}`,
+      time: null,
       isRange: true,
       color: "text-amber-400",
     },
@@ -44,6 +63,7 @@ export function TimingPanel({ timing }: TimingPanelProps) {
       label: "Snow Ends",
       time: timing.snowEnds,
       color: "text-muted-foreground",
+      isRange: false,
     },
   ];
 
@@ -63,7 +83,7 @@ export function TimingPanel({ timing }: TimingPanelProps) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{event.label}</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {event.isRange ? event.time : formatTime(event.time as string)}
+                  {event.isRange ? getMixingWindowDisplay() : getDisplayTime(event.time as string)}
                 </p>
               </div>
             </div>

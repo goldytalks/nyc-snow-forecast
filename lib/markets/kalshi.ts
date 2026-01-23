@@ -128,40 +128,54 @@ export async function getKalshiMarket(ticker: string): Promise<KalshiMarket> {
 
 /**
  * Fetch all NYC snowfall markets
- * Common event tickers: KXSNOWNYC, SNOWNYC, etc.
+ * Specific event: https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc
  */
 export async function fetchNYCSnowfallMarkets(): Promise<ParsedKalshiMarket[]> {
-  // Try different possible event tickers
-  const possibleTickers = [
-    "KXSNOWNYC",
-    "SNOWNYC",
-    "NYCSNOW",
-    "KXNYCSNOW",
-    "SNOW-NYC",
-    "SNOW-26-NYC",
-    "KXSNOW",
-  ];
+  // The exact event ticker for NYC Jan 26 snowstorm
+  const EVENT_TICKER = "KXSNOWSTORM-26JANNYC";
 
   let allMarkets: KalshiMarket[] = [];
 
-  // Try each possible ticker
-  for (const ticker of possibleTickers) {
-    try {
-      const markets = await getKalshiMarketsByEvent(ticker);
-      if (markets.length > 0) {
-        allMarkets = [...allMarkets, ...markets];
+  // First try the exact event ticker
+  try {
+    const markets = await getKalshiMarketsByEvent(EVENT_TICKER);
+    if (markets.length > 0) {
+      allMarkets = markets;
+      console.log(`[Kalshi] Found ${markets.length} markets for ${EVENT_TICKER}`);
+    }
+  } catch (error) {
+    console.error(`[Kalshi] Failed to fetch ${EVENT_TICKER}:`, error);
+  }
+
+  // If no markets found, try alternative tickers
+  if (allMarkets.length === 0) {
+    const fallbackTickers = [
+      "KXSNOWSTORM",
+      "KXSNOWNYC",
+      "SNOWNYC",
+    ];
+
+    for (const ticker of fallbackTickers) {
+      try {
+        const markets = await getKalshiMarketsByEvent(ticker);
+        if (markets.length > 0) {
+          allMarkets = [...allMarkets, ...markets];
+          console.log(`[Kalshi] Found ${markets.length} markets for ${ticker}`);
+        }
+      } catch {
+        // Continue to next ticker
       }
-    } catch {
-      // Continue to next ticker
     }
   }
 
-  // Also do a general search
-  try {
-    const searchResults = await searchKalshiMarkets("snow");
-    allMarkets = [...allMarkets, ...searchResults];
-  } catch {
-    // Ignore search errors
+  // If still nothing, try a general search
+  if (allMarkets.length === 0) {
+    try {
+      const searchResults = await searchKalshiMarkets("snow");
+      allMarkets = searchResults;
+    } catch {
+      // Ignore search errors
+    }
   }
 
   // Deduplicate by ticker

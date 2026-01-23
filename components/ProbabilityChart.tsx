@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AreaChart,
@@ -92,6 +92,13 @@ function CustomActiveDot({ cx, cy }: CustomDotProps) {
 
 export function ProbabilityChart({ strikeProbabilities }: ProbabilityChartProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Wait for mount with a small delay to ensure container has dimensions
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Convert to array and add 0" data point
   const data = [
@@ -125,7 +132,12 @@ export function ProbabilityChart({ strikeProbabilities }: ProbabilityChartProps)
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <ResponsiveContainer width="100%" height="100%">
+          {!isMounted ? (
+            <div className="h-full w-full flex items-center justify-center">
+              <div className="animate-pulse text-muted-foreground">Loading chart...</div>
+            </div>
+          ) : (
+          <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={280}>
             <AreaChart
               data={data}
               margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
@@ -217,6 +229,7 @@ export function ProbabilityChart({ strikeProbabilities }: ProbabilityChartProps)
               />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
 
         {/* Quick stats below chart */}

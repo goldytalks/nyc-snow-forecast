@@ -56,6 +56,48 @@ export interface UnifiedForecastData {
 }
 
 /**
+ * Calculate model estimates from available data
+ * GFS: Derived from NWS gridpoint snowfall data (which uses GFS)
+ * ECMWF: Typically runs higher, estimate from AFD mentions or NWS high end
+ * NAM: Usually between GFS and ECMWF for Northeast storms
+ */
+function calculateModelEstimates(
+  gridpointData: NWSGridpointData | null,
+  afdData: AFDExtraction | null,
+  snowRange: { low: number; high: number }
+): { gfs: number; ecmwf: number; nam: number } {
+  // Base GFS estimate from gridpoint snowfall data (which is GFS-derived)
+  let gfsEstimate = snowRange.low + (snowRange.high - snowRange.low) * 0.4;
+
+  if (gridpointData?.snowfallAmount?.length) {
+    // Sum up snowfall from gridpoint data (convert mm to inches)
+    const totalSnowMm = gridpointData.snowfallAmount
+      .filter(s => s.value !== null)
+      .reduce((sum, s) => sum + (s.value || 0), 0);
+    const totalSnowInches = totalSnowMm / 25.4;
+    if (totalSnowInches > 0) {
+      gfsEstimate = Math.round(totalSnowInches * 10) / 10;
+    }
+  }
+
+  // ECMWF typically runs 10-20% higher for Northeast snowstorms
+  // Use the localized max if available, otherwise estimate
+  let ecmwfEstimate = afdData?.localizedMax
+    ? Math.min(afdData.localizedMax, snowRange.high + 2)
+    : snowRange.high;
+
+  // NAM is usually between GFS and ECMWF
+  const namEstimate = Math.round((gfsEstimate + ecmwfEstimate) / 2 * 10) / 10;
+
+  // Ensure reasonable bounds
+  return {
+    gfs: Math.max(4, Math.min(24, Math.round(gfsEstimate))),
+    ecmwf: Math.max(6, Math.min(26, Math.round(ecmwfEstimate))),
+    nam: Math.max(5, Math.min(25, Math.round(namEstimate))),
+  };
+}
+
+/**
  * Fetch all data sources and combine into unified format
  */
 export async function fetchAllNWSData(): Promise<UnifiedForecastData> {
@@ -144,13 +186,12 @@ export async function fetchAllNWSData(): Promise<UnifiedForecastData> {
     keyPhrases: afdData?.keyPhrases || [],
   };
 
-  // Model estimates - in production these would be scraped
-  // Using current best estimates based on model runs
-  const modelEstimates = {
-    gfs: 10,
-    ecmwf: 14,
-    nam: 12,
-  };
+  // Calculate model estimates from gridpoint data and AFD
+  const modelEstimates = calculateModelEstimates(
+    nwsGridpointSource.data,
+    afdData,
+    combinedSnowRange
+  );
 
   return {
     timestamp,

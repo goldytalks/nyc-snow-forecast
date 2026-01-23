@@ -41,7 +41,8 @@ export function RealtimeProvider({
   const [lastUpdate, setLastUpdate] = useState<Date | null>(
     initialData ? new Date() : null
   );
-  const [isConnected, setIsConnected] = useState(false);
+  // Consider "connected" if we have data, even if SSE reconnecting
+  const [isConnected, setIsConnected] = useState(!!initialData);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -83,8 +84,8 @@ export function RealtimeProvider({
       };
 
       eventSource.onerror = () => {
-        setIsConnected(false);
-        setError("Connection lost");
+        // Only set disconnected if we don't have data - prevents flickering
+        setError("Reconnecting...");
         console.error("[SSE] Connection error");
 
         // Close and attempt reconnect

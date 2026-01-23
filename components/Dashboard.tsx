@@ -104,10 +104,7 @@ export function Dashboard({ initialData }: DashboardProps) {
           className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"
           style={{ animationDelay: "0.35s" }}
         >
-          <DataSourcesPanel
-            dataSources={data.dataSources}
-            lastModelRun={data.modelRunTimestamp}
-          />
+          <DataSourcesPanel dataSources={data.dataSources} />
 
           {/* Uncertainties */}
           <UncertaintyPanel uncertainties={data.keyUncertainties} />

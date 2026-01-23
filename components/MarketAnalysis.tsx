@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,13 +10,14 @@ import {
   DollarSign,
   ExternalLink,
   Target,
+  RefreshCw,
+  Wallet,
+  BookOpen,
 } from "lucide-react";
 import {
   calculateAllEdges,
   getBestOpportunities,
   calculateRangeProbabilities,
-  KALSHI_PRICES,
-  POLYMARKET_PRICES,
   type EdgeAnalysis,
 } from "@/lib/markets/manual-prices";
 
@@ -24,24 +25,203 @@ interface MarketAnalysisProps {
   strikeProbabilities: Record<string, number>;
 }
 
+interface KalshiMarket {
+  ticker: string;
+  title: string;
+  subtitle: string;
+  closeTime: string;
+  expirationTime: string;
+  status: string;
+  yes: { bid: number; ask: number; mid: number; spread: number };
+  no: { bid: number; ask: number; mid: number; spread: number };
+  volume: number;
+  volume24h: number;
+  openInterest: number;
+}
+
+interface PolymarketMarket {
+  id: string;
+  question: string;
+  groupItemTitle?: string;
+  slug: string;
+  endDate: string;
+  yes: { price: number; impliedProb: number };
+  no: { price: number; impliedProb: number };
+  volume: number;
+  liquidity: number;
+  active: boolean;
+  closed: boolean;
+}
+
+interface Position {
+  ticker?: string;
+  market_id?: string;
+  market_title?: string;
+  market_question?: string;
+  position?: number;
+  size?: number;
+  outcome?: string;
+  average_price: number;
+  unrealized_pnl?: number;
+  realized_pnl?: number;
+}
+
+interface MarketAPIResponse {
+  timestamp: string;
+  dataSource: "live" | "manual";
+  edges: EdgeAnalysis[];
+  highValueEdges: EdgeAnalysis[];
+  kalshi: {
+    eventTitle: string;
+    eventTicker: string;
+    markets: KalshiMarket[];
+    positions: Position[];
+    orderbooks: Record<string, any>;
+    marketsFound: number;
+  };
+  polymarket: {
+    eventTitle: string;
+    eventSlug: string;
+    eventEndDate: string;
+    markets: PolymarketMarket[];
+    positions: Position[];
+    orderbooks: Record<string, any>;
+    marketsFound: number;
+  };
+  summary: {
+    kalshiMarketsFound: number;
+    polymarketMarketsFound: number;
+    edgeOpportunities: number;
+    usingManualPrices: boolean;
+    kalshiPositions: number;
+    polymarketPositions: number;
+  };
+}
+
+// Helper to safely get edge percentage
+const getEdgePct = (edge: any): number => {
+  if (edge.edgePct !== undefined) return edge.edgePct;
+  if (edge.edge !== undefined) return edge.edge * 100;
+  return 0;
+};
+
+// Helper to safely get kelly percentage
+const getKellyPct = (edge: any): number => {
+  if (edge.kellyPct !== undefined) return edge.kellyPct;
+  if (edge.expectedValue !== undefined) return Math.abs(edge.expectedValue) * 100;
+  return 0;
+};
+
+// Helper to safely format percentage
+const formatProb = (prob: number | undefined): string => {
+  if (prob === undefined || prob === null || isNaN(prob)) return "—";
+  return `${(prob * 100).toFixed(0)}%`;
+};
+
+// Helper to format price
+const formatPrice = (price: number | undefined): string => {
+  if (price === undefined || price === null || isNaN(price)) return "—";
+  return `${(price * 100).toFixed(1)}¢`;
+};
+
+// Helper to format time
+const formatTime = (isoString: string | undefined): string => {
+  if (!isoString) return "—";
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+};
+
 export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
-  const edges = useMemo(
-    () => calculateAllEdges(strikeProbabilities),
-    [strikeProbabilities]
-  );
+  const [liveData, setLiveData] = useState<MarketAPIResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastFetch, setLastFetch] = useState<Date | null>(null);
+
+  // Fetch live market data
+  const fetchMarketData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch("/api/markets");
+      if (response.ok) {
+        const data = await response.json();
+        setLiveData(data);
+        setLastFetch(new Date());
+      }
+    } catch (error) {
+      console.error("Failed to fetch market data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch on mount and every 30 seconds
+  useEffect(() => {
+    fetchMarketData();
+    const interval = setInterval(fetchMarketData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Use live data if available, otherwise fall back to manual calculation
+  const edges = useMemo(() => {
+    if (liveData?.edges) {
+      return liveData.edges;
+    }
+    return calculateAllEdges(strikeProbabilities);
+  }, [liveData, strikeProbabilities]);
 
   const opportunities = useMemo(() => getBestOpportunities(edges), [edges]);
 
   const kalshiEdges = edges.filter((e) => e.source === "kalshi");
   const polymarketEdges = edges.filter((e) => e.source === "polymarket");
 
-  const rangeProbabilities = useMemo(
-    () => calculateRangeProbabilities(strikeProbabilities),
-    [strikeProbabilities]
-  );
+  const isLive = liveData?.dataSource === "live";
+
+  // Calculate total positions value
+  const totalKalshiPositions = liveData?.kalshi?.positions?.length || 0;
+  const totalPolymarketPositions = liveData?.polymarket?.positions?.length || 0;
 
   return (
     <div className="space-y-6">
+      {/* Data Source Status */}
+      <div className="flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          {isLoading ? (
+            <RefreshCw className="w-3 h-3 animate-spin text-muted-foreground" />
+          ) : isLive ? (
+            <span className="flex items-center gap-1 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Live prices
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-amber-400">
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              Manual prices
+            </span>
+          )}
+          {lastFetch && (
+            <span className="text-muted-foreground">
+              Updated {lastFetch.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={fetchMarketData}
+          disabled={isLoading}
+          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3 h-3 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+
       {/* Top Opportunities */}
       {opportunities.length > 0 && (
         <Card className="bg-card border-border border-amber-500/30">
@@ -66,12 +246,23 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-medium flex items-center gap-2">
-              <Target className="w-5 h-5 text-blue-400" />
-              Kalshi Over/Under
-            </CardTitle>
+            <div>
+              <CardTitle className="text-lg font-medium flex items-center gap-2">
+                <Target className="w-5 h-5 text-blue-400" />
+                {liveData?.kalshi?.eventTitle || "Kalshi Over/Under"}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                {liveData?.kalshi?.eventTicker || "KXSNOWSTORM-26JANNYC"} •{" "}
+                {liveData?.kalshi?.marketsFound || 0} markets
+                {totalKalshiPositions > 0 && (
+                  <span className="text-emerald-400 ml-2">
+                    • {totalKalshiPositions} positions
+                  </span>
+                )}
+              </p>
+            </div>
             <a
-              href="https://kalshi.com/markets/weather"
+              href="https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -81,51 +272,92 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Positions Section */}
+          {liveData?.kalshi?.positions && liveData.kalshi.positions.length > 0 && (
+            <div className="mb-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+              <div className="flex items-center gap-2 mb-2 text-sm font-medium text-emerald-400">
+                <Wallet className="w-4 h-4" />
+                Your Positions
+              </div>
+              <div className="space-y-1">
+                {liveData.kalshi.positions.map((pos, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span>{pos.market_title || pos.ticker}</span>
+                    <span className={pos.position! > 0 ? "text-emerald-400" : "text-red-400"}>
+                      {pos.position! > 0 ? "YES" : "NO"} × {Math.abs(pos.position!)} @ {formatPrice(pos.average_price)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="text-left py-2 pr-2">Strike</th>
-                  <th className="text-right py-2 px-2">Model</th>
-                  <th className="text-right py-2 px-2">Market</th>
-                  <th className="text-right py-2 px-2">Edge</th>
-                  <th className="text-right py-2 pl-2">Signal</th>
+                <tr className="border-b border-border text-muted-foreground text-xs">
+                  <th className="text-left py-2 pr-2 font-medium">Strike</th>
+                  <th className="text-center py-2 px-1 font-medium">
+                    <span className="text-emerald-400">YES</span>
+                    <span className="text-muted-foreground/50 mx-1">bid/ask</span>
+                  </th>
+                  <th className="text-center py-2 px-1 font-medium">
+                    <span className="text-red-400">NO</span>
+                    <span className="text-muted-foreground/50 mx-1">bid/ask</span>
+                  </th>
+                  <th className="text-center py-2 px-1 font-medium">Spread</th>
+                  <th className="text-right py-2 px-2 font-medium">Model</th>
+                  <th className="text-right py-2 px-2 font-medium">Edge</th>
+                  <th className="text-right py-2 pl-2 font-medium">Signal</th>
                 </tr>
               </thead>
               <tbody>
-                {kalshiEdges.map((edge) => (
-                  <tr
-                    key={edge.market}
-                    className={`border-b border-border/50 ${
-                      edge.direction !== "NO_EDGE" ? "bg-muted/30" : ""
-                    }`}
-                  >
-                    <td className="py-2 pr-2 font-medium">{edge.market}</td>
-                    <td className="py-2 px-2 text-right font-mono">
-                      {(edge.modelProb * 100).toFixed(0)}%
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono text-muted-foreground">
-                      {(edge.marketProb * 100).toFixed(0)}%
-                    </td>
-                    <td className="py-2 px-2 text-right">
-                      <span
-                        className={`font-mono ${
-                          edge.edge > 0.05
-                            ? "text-emerald-400"
-                            : edge.edge < -0.05
-                              ? "text-red-400"
-                              : "text-muted-foreground"
+                {liveData?.kalshi?.markets && liveData.kalshi.markets.length > 0
+                  ? liveData.kalshi.markets.map((market) => (
+                      <KalshiMarketRow
+                        key={market.ticker}
+                        market={market}
+                        edge={kalshiEdges.find((e) =>
+                          e.market.includes(market.title.replace(/[^0-9.]/g, ""))
+                        )}
+                      />
+                    ))
+                  : kalshiEdges.map((edge) => (
+                      <tr
+                        key={edge.market}
+                        className={`border-b border-border/50 ${
+                          edge.direction !== "NO_EDGE" ? "bg-muted/30" : ""
                         }`}
                       >
-                        {edge.edge >= 0 ? "+" : ""}
-                        {edge.edgePct.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="py-2 pl-2 text-right">
-                      <SignalBadge direction={edge.direction} />
-                    </td>
-                  </tr>
-                ))}
+                        <td className="py-2 pr-2 font-medium">{edge.market}</td>
+                        <td className="py-2 px-2 text-right font-mono text-emerald-400/70">
+                          {formatProb(edge.marketProb)}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono text-red-400/70">
+                          {formatProb(1 - (edge.marketProb || 0))}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono">
+                          {formatProb(edge.modelProb)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <span
+                            className={`font-mono ${
+                              getEdgePct(edge) > 5
+                                ? "text-emerald-400"
+                                : getEdgePct(edge) < -5
+                                  ? "text-red-400"
+                                  : "text-muted-foreground"
+                            }`}
+                          >
+                            {getEdgePct(edge) >= 0 ? "+" : ""}
+                            {getEdgePct(edge).toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-2 pl-2 text-right">
+                          <SignalBadge direction={edge.direction} />
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
@@ -136,12 +368,25 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-medium flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-purple-400" />
-              Polymarket Ranges
-            </CardTitle>
+            <div>
+              <CardTitle className="text-lg font-medium flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-purple-400" />
+                {liveData?.polymarket?.eventTitle || "Polymarket Ranges"}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                {liveData?.polymarket?.marketsFound || 0} markets
+                {liveData?.polymarket?.eventEndDate && (
+                  <span> • Ends {formatTime(liveData.polymarket.eventEndDate)}</span>
+                )}
+                {totalPolymarketPositions > 0 && (
+                  <span className="text-emerald-400 ml-2">
+                    • {totalPolymarketPositions} positions
+                  </span>
+                )}
+              </p>
+            </div>
             <a
-              href="https://polymarket.com"
+              href="https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -151,55 +396,95 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Positions Section */}
+          {liveData?.polymarket?.positions && liveData.polymarket.positions.length > 0 && (
+            <div className="mb-4 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
+              <div className="flex items-center gap-2 mb-2 text-sm font-medium text-purple-400">
+                <Wallet className="w-4 h-4" />
+                Your Positions
+              </div>
+              <div className="space-y-1">
+                {liveData.polymarket.positions.map((pos, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span>{pos.market_question || pos.market_id}</span>
+                    <span className={pos.outcome === "Yes" ? "text-emerald-400" : "text-red-400"}>
+                      {pos.outcome} × {pos.size?.toFixed(2)} @ {formatPrice(pos.average_price)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-muted-foreground">
-                  <th className="text-left py-2 pr-2">Range</th>
-                  <th className="text-right py-2 px-2">Model</th>
-                  <th className="text-right py-2 px-2">Market</th>
-                  <th className="text-right py-2 px-2">Edge</th>
-                  <th className="text-right py-2 px-1">Vol</th>
-                  <th className="text-right py-2 pl-1">Signal</th>
+                <tr className="border-b border-border text-muted-foreground text-xs">
+                  <th className="text-left py-2 pr-2 font-medium">Range</th>
+                  <th className="text-center py-2 px-1 font-medium">
+                    <span className="text-emerald-400">YES</span>
+                    <span className="text-muted-foreground/50 mx-1">price</span>
+                  </th>
+                  <th className="text-center py-2 px-1 font-medium">
+                    <span className="text-red-400">NO</span>
+                    <span className="text-muted-foreground/50 mx-1">price</span>
+                  </th>
+                  <th className="text-right py-2 px-2 font-medium">Model</th>
+                  <th className="text-right py-2 px-2 font-medium">Edge</th>
+                  <th className="text-right py-2 px-1 font-medium">Vol</th>
+                  <th className="text-right py-2 pl-1 font-medium">Signal</th>
                 </tr>
               </thead>
               <tbody>
-                {polymarketEdges.map((edge) => (
-                  <tr
-                    key={edge.market}
-                    className={`border-b border-border/50 ${
-                      edge.direction !== "NO_EDGE" ? "bg-muted/30" : ""
-                    }`}
-                  >
-                    <td className="py-2 pr-2 font-medium">{edge.market}</td>
-                    <td className="py-2 px-2 text-right font-mono">
-                      {(edge.modelProb * 100).toFixed(0)}%
-                    </td>
-                    <td className="py-2 px-2 text-right font-mono text-muted-foreground">
-                      {(edge.marketProb * 100).toFixed(0)}%
-                    </td>
-                    <td className="py-2 px-2 text-right">
-                      <span
-                        className={`font-mono ${
-                          edge.edge > 0.05
-                            ? "text-emerald-400"
-                            : edge.edge < -0.05
-                              ? "text-red-400"
-                              : "text-muted-foreground"
+                {liveData?.polymarket?.markets && liveData.polymarket.markets.length > 0
+                  ? liveData.polymarket.markets.map((market) => (
+                      <PolymarketMarketRow
+                        key={market.id}
+                        market={market}
+                        edge={polymarketEdges.find((e) =>
+                          market.question.toLowerCase().includes(e.market.toLowerCase().replace(/[<>+"]/g, ""))
+                        )}
+                      />
+                    ))
+                  : polymarketEdges.map((edge) => (
+                      <tr
+                        key={edge.market}
+                        className={`border-b border-border/50 ${
+                          edge.direction !== "NO_EDGE" ? "bg-muted/30" : ""
                         }`}
                       >
-                        {edge.edge >= 0 ? "+" : ""}
-                        {edge.edgePct.toFixed(1)}%
-                      </span>
-                    </td>
-                    <td className="py-2 px-1 text-right text-xs text-muted-foreground">
-                      {edge.volume ? `$${(edge.volume / 1000).toFixed(0)}k` : "—"}
-                    </td>
-                    <td className="py-2 pl-1 text-right">
-                      <SignalBadge direction={edge.direction} />
-                    </td>
-                  </tr>
-                ))}
+                        <td className="py-2 pr-2 font-medium">{edge.market}</td>
+                        <td className="py-2 px-2 text-right font-mono text-emerald-400/70">
+                          {formatProb(edge.marketProb)}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono text-red-400/70">
+                          {formatProb(1 - (edge.marketProb || 0))}
+                        </td>
+                        <td className="py-2 px-2 text-right font-mono">
+                          {formatProb(edge.modelProb)}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <span
+                            className={`font-mono ${
+                              getEdgePct(edge) > 5
+                                ? "text-emerald-400"
+                                : getEdgePct(edge) < -5
+                                  ? "text-red-400"
+                                  : "text-muted-foreground"
+                            }`}
+                          >
+                            {getEdgePct(edge) >= 0 ? "+" : ""}
+                            {getEdgePct(edge).toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-2 px-1 text-right text-xs text-muted-foreground">
+                          {edge.volume ? `$${(edge.volume / 1000).toFixed(0)}k` : "—"}
+                        </td>
+                        <td className="py-2 pl-1 text-right">
+                          <SignalBadge direction={edge.direction} />
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
@@ -218,11 +503,168 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
           size (fractional)
         </p>
         <p className="text-muted-foreground/70">
-          Market prices are estimates. Update lib/markets/manual-prices.ts with
-          current prices. Not financial advice.
+          Auto-refreshes every 30 seconds. Not financial advice.
         </p>
       </div>
     </div>
+  );
+}
+
+// Kalshi market row with YES/NO orderbook display
+function KalshiMarketRow({
+  market,
+  edge,
+}: {
+  market: KalshiMarket;
+  edge?: EdgeAnalysis;
+}) {
+  const edgePct = edge ? getEdgePct(edge) : 0;
+  const hasEdge = edge && edge.direction !== "NO_EDGE";
+
+  return (
+    <tr className={`border-b border-border/50 ${hasEdge ? "bg-muted/30" : ""}`}>
+      <td className="py-3 pr-2">
+        <div className="font-medium text-sm">{market.title}</div>
+      </td>
+      {/* YES Orderbook */}
+      <td className="py-3 px-1">
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">YES</span>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-emerald-400/70 font-mono">{formatPrice(market.yes.bid)}</span>
+            <span className="text-muted-foreground">/</span>
+            <span className="text-emerald-400 font-mono font-semibold">{formatPrice(market.yes.ask)}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground font-mono">
+            {(market.yes.mid * 100).toFixed(0)}%
+          </div>
+        </div>
+      </td>
+      {/* NO Orderbook */}
+      <td className="py-3 px-1">
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">NO</span>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-red-400/70 font-mono">{formatPrice(market.no.bid)}</span>
+            <span className="text-muted-foreground">/</span>
+            <span className="text-red-400 font-mono font-semibold">{formatPrice(market.no.ask)}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground font-mono">
+            {(market.no.mid * 100).toFixed(0)}%
+          </div>
+        </div>
+      </td>
+      {/* Spread */}
+      <td className="py-3 px-1 text-center">
+        <div className="text-[10px] text-muted-foreground">spread</div>
+        <div className="text-xs font-mono text-muted-foreground">
+          {((market.yes.ask - market.yes.bid) * 100).toFixed(0)}¢
+        </div>
+      </td>
+      {/* Model */}
+      <td className="py-3 px-2 text-right">
+        <div className="text-[10px] text-muted-foreground">model</div>
+        <div className="font-mono text-sm">
+          {edge ? formatProb(edge.modelProb) : "—"}
+        </div>
+      </td>
+      {/* Edge */}
+      <td className="py-3 px-2 text-right">
+        <div className="text-[10px] text-muted-foreground">edge</div>
+        <span
+          className={`font-mono text-sm font-semibold ${
+            edgePct > 5
+              ? "text-emerald-400"
+              : edgePct < -5
+                ? "text-red-400"
+                : "text-muted-foreground"
+          }`}
+        >
+          {edgePct >= 0 ? "+" : ""}
+          {edgePct.toFixed(1)}%
+        </span>
+      </td>
+      {/* Signal */}
+      <td className="py-3 pl-2 text-right">
+        {edge ? <SignalBadge direction={edge.direction} /> : <span className="text-xs text-muted-foreground">—</span>}
+      </td>
+    </tr>
+  );
+}
+
+// Polymarket market row with YES/NO orderbook display
+function PolymarketMarketRow({
+  market,
+  edge,
+}: {
+  market: PolymarketMarket;
+  edge?: EdgeAnalysis;
+}) {
+  const edgePct = edge ? getEdgePct(edge) : 0;
+  const hasEdge = edge && edge.direction !== "NO_EDGE";
+
+  // Extract range from question
+  const rangeMatch = market.question.match(/(\d+[-–]\d+|\d+\+|<\d+|under \d+)/i);
+  const range = market.groupItemTitle || rangeMatch?.[0] || market.question.substring(0, 20);
+
+  return (
+    <tr className={`border-b border-border/50 ${hasEdge ? "bg-muted/30" : ""}`}>
+      <td className="py-3 pr-2">
+        <div className="font-medium text-sm">{range}"</div>
+      </td>
+      {/* YES Price */}
+      <td className="py-3 px-1">
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">YES</span>
+          <div className="text-sm font-mono font-semibold text-emerald-400">
+            {(market.yes.price * 100).toFixed(0)}¢
+          </div>
+        </div>
+      </td>
+      {/* NO Price */}
+      <td className="py-3 px-1">
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">NO</span>
+          <div className="text-sm font-mono font-semibold text-red-400">
+            {(market.no.price * 100).toFixed(0)}¢
+          </div>
+        </div>
+      </td>
+      {/* Model */}
+      <td className="py-3 px-2 text-right">
+        <div className="text-[10px] text-muted-foreground">model</div>
+        <div className="font-mono text-sm">
+          {edge ? formatProb(edge.modelProb) : "—"}
+        </div>
+      </td>
+      {/* Edge */}
+      <td className="py-3 px-2 text-right">
+        <div className="text-[10px] text-muted-foreground">edge</div>
+        <span
+          className={`font-mono text-sm font-semibold ${
+            edgePct > 5
+              ? "text-emerald-400"
+              : edgePct < -5
+                ? "text-red-400"
+                : "text-muted-foreground"
+          }`}
+        >
+          {edgePct >= 0 ? "+" : ""}
+          {edgePct.toFixed(1)}%
+        </span>
+      </td>
+      {/* Volume */}
+      <td className="py-3 px-1 text-right">
+        <div className="text-[10px] text-muted-foreground">vol</div>
+        <div className="text-xs text-muted-foreground">
+          {market.volume > 0 ? `$${(market.volume / 1000).toFixed(0)}k` : "—"}
+        </div>
+      </td>
+      {/* Signal */}
+      <td className="py-3 pl-1 text-right">
+        {edge ? <SignalBadge direction={edge.direction} /> : <span className="text-xs text-muted-foreground">—</span>}
+      </td>
+    </tr>
   );
 }
 
@@ -263,18 +705,18 @@ function OpportunityCard({ edge, rank }: { edge: EdgeAnalysis; rank: number }) {
             </Badge>
           </div>
           <div className="text-xs text-muted-foreground">
-            Model: {(edge.modelProb * 100).toFixed(0)}% | Market:{" "}
-            {(edge.marketProb * 100).toFixed(0)}%
+            Model: {formatProb(edge.modelProb)} | Market:{" "}
+            {formatProb(edge.marketProb)}
           </div>
         </div>
       </div>
       <div className="text-right">
         <div className={`font-mono font-bold text-lg text-${color}-400`}>
           {isYes ? "+" : ""}
-          {edge.edgePct.toFixed(1)}%
+          {getEdgePct(edge).toFixed(1)}%
         </div>
         <div className="text-xs text-muted-foreground">
-          Kelly: {edge.kellyPct.toFixed(1)}%
+          Kelly: {getKellyPct(edge).toFixed(1)}%
         </div>
       </div>
     </div>

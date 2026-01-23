@@ -30,6 +30,12 @@ export interface PolymarketMarket {
   active: boolean;
   closed: boolean;
   clobTokenIds?: string[];
+  // Additional price fields that might be present
+  bestBid?: string;
+  bestAsk?: string;
+  lastTradePrice?: string;
+  price?: string;
+  groupItemTitle?: string;
 }
 
 export interface CLOBPrice {
@@ -179,37 +185,54 @@ export async function getCLOBPrices(tokenIds: string[]): Promise<CLOBPrice[]> {
 
 /**
  * Fetch NYC snowfall markets from Polymarket
+ * Specific event: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
  */
 export async function fetchNYCSnowfallMarkets(): Promise<ParsedPolymarketMarket[]> {
-  // Try different possible slugs
-  const possibleSlugs = [
-    "nyc-snowfall-january-2026",
-    "new-york-city-snowfall",
-    "nyc-snow-january-2026",
-    "central-park-snowfall",
-    "how-much-snow-will-fall-in-nyc",
-  ];
+  // The exact slug for NYC Jan 24-26 snowfall
+  const EVENT_SLUG = "how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26";
 
   let allMarkets: PolymarketMarket[] = [];
 
-  // Try each slug
-  for (const slug of possibleSlugs) {
-    try {
-      const event = await getPolymarketEventBySlug(slug);
-      if (event && event.markets) {
-        allMarkets = [...allMarkets, ...event.markets];
+  // First try the exact slug
+  try {
+    const event = await getPolymarketEventBySlug(EVENT_SLUG);
+    if (event && event.markets) {
+      allMarkets = event.markets;
+      console.log(`[Polymarket] Found ${event.markets.length} markets for ${EVENT_SLUG}`);
+    }
+  } catch (error) {
+    console.error(`[Polymarket] Failed to fetch ${EVENT_SLUG}:`, error);
+  }
+
+  // If no markets found, try alternative slugs
+  if (allMarkets.length === 0) {
+    const fallbackSlugs = [
+      "nyc-snowfall-january-2026",
+      "new-york-city-snowfall",
+      "nyc-snow-january-2026",
+    ];
+
+    for (const slug of fallbackSlugs) {
+      try {
+        const event = await getPolymarketEventBySlug(slug);
+        if (event && event.markets) {
+          allMarkets = [...allMarkets, ...event.markets];
+          console.log(`[Polymarket] Found ${event.markets.length} markets for ${slug}`);
+        }
+      } catch {
+        // Continue
       }
-    } catch {
-      // Continue
     }
   }
 
-  // Also do a general search
-  try {
-    const markets = await getPolymarketMarkets();
-    allMarkets = [...allMarkets, ...markets];
-  } catch {
-    // Ignore
+  // If still nothing, try a general search
+  if (allMarkets.length === 0) {
+    try {
+      const markets = await getPolymarketMarkets();
+      allMarkets = markets;
+    } catch {
+      // Ignore
+    }
   }
 
   // Deduplicate
@@ -217,10 +240,38 @@ export async function fetchNYCSnowfallMarkets(): Promise<ParsedPolymarketMarket[
     new Map(allMarkets.map((m) => [m.id, m])).values()
   );
 
+  // Try to fetch CLOB prices for markets with token IDs
+  const marketsWithPrices = await enrichWithCLOBPrices(uniqueMarkets);
+
   // Parse markets
-  return uniqueMarkets
+  return marketsWithPrices
     .map(parsePolymarketMarket)
     .filter((m) => m !== null) as ParsedPolymarketMarket[];
+}
+
+/**
+ * Enrich markets with CLOB prices
+ */
+async function enrichWithCLOBPrices(markets: PolymarketMarket[]): Promise<PolymarketMarket[]> {
+  const enrichedMarkets: PolymarketMarket[] = [];
+
+  for (const market of markets) {
+    if (market.clobTokenIds && market.clobTokenIds.length > 0) {
+      try {
+        const prices = await getCLOBPrices(market.clobTokenIds.slice(0, 1));
+        if (prices.length > 0) {
+          const price = prices[0];
+          market.bestBid = price.bid.toString();
+          market.lastTradePrice = price.last_trade_price.toString();
+        }
+      } catch {
+        // Continue without CLOB prices
+      }
+    }
+    enrichedMarkets.push(market);
+  }
+
+  return enrichedMarkets;
 }
 
 /**
@@ -244,8 +295,8 @@ function parsePolymarketMarket(
     rangeHigh = parseFloat(underMatch[1]);
   }
 
-  // Match patterns like "14+", "over 14", "more than 14", "above 14"
-  const overMatch = question.match(/(\d+)\+|(?:over|more than|above)\s*(\d+)/i);
+  // Match patterns like "14 or more", "14+", "over 14", "more than 14", "above 14"
+  const overMatch = question.match(/(\d+)\s*(?:or more|\+)|(?:over|more than|above)\s*(\d+)/i);
   if (overMatch) {
     rangeType = "over";
     rangeLow = parseFloat(overMatch[1] || overMatch[2]);
@@ -259,9 +310,25 @@ function parsePolymarketMarket(
     rangeHigh = parseFloat(rangeMatch[2]);
   }
 
-  // Parse prices
+  // Parse prices - try multiple possible fields
+  // Polymarket API returns prices as strings in outcomePrices array
+  // or as bestBid/bestAsk fields, or as price field
   const prices = market.outcomePrices || [];
-  const yesPrice = parseFloat(prices[0] || "0");
+  let yesPrice = parseFloat(prices[0] || "0");
+
+  // If outcomePrices didn't work, try other fields
+  if (yesPrice === 0 || isNaN(yesPrice)) {
+    // Try market.bestBid or other price fields that might exist
+    const anyMarket = market as any;
+    if (anyMarket.bestBid) {
+      yesPrice = parseFloat(anyMarket.bestBid);
+    } else if (anyMarket.price) {
+      yesPrice = parseFloat(anyMarket.price);
+    } else if (anyMarket.lastTradePrice) {
+      yesPrice = parseFloat(anyMarket.lastTradePrice);
+    }
+  }
+
   const noPrice = parseFloat(prices[1] || "0") || 1 - yesPrice;
 
   return {

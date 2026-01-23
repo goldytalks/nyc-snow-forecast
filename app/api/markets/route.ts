@@ -1,6 +1,7 @@
 /**
  * Market Data API
  * Fetches real-time prices from Kalshi and Polymarket
+ * Includes orderbooks, positions, and both YES/NO sides
  * Falls back to manual prices if API discovery fails
  */
 
@@ -16,9 +17,124 @@ import {
   calculateAllEdges,
 } from "@/lib/markets/manual-prices";
 import { getCurrentForecast } from "@/lib/realtime/polling";
+import {
+  getNYCSnowstormMarketsWithDetails,
+  type KalshiMarketDetails,
+  type KalshiPosition,
+  type KalshiOrderbook,
+} from "@/lib/markets/kalshi-auth";
+import {
+  getNYCSnowfallMarketsWithDetails as getPolymarketDetails,
+  type PolymarketMarketDetails,
+  type PolymarketPosition,
+  type PolymarketOrderbook,
+} from "@/lib/markets/polymarket-profile";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+// Format Kalshi market for display with YES and NO sides
+function formatKalshiMarket(market: KalshiMarketDetails) {
+  const yesBid = market.yes_bid / 100;
+  const yesAsk = market.yes_ask / 100;
+  const noBid = market.no_bid / 100;
+  const noAsk = market.no_ask / 100;
+  const yesMid = (yesBid + yesAsk) / 2;
+  const noMid = (noBid + noAsk) / 2;
+
+  // Extract threshold from ticker (e.g., "KXSNOWSTORM-26JANNYC-8.0" -> 8)
+  const tickerMatch = market.ticker.match(/-(\d+(?:\.\d+)?)$/);
+  const threshold = tickerMatch ? parseFloat(tickerMatch[1]) : null;
+  const displayTitle = threshold !== null
+    ? `Above ${threshold}" of snow`
+    : market.title;
+
+  return {
+    ticker: market.ticker,
+    title: displayTitle,
+    threshold,
+    subtitle: market.subtitle || market.title,
+    closeTime: market.close_time,
+    expirationTime: market.expiration_time,
+    status: market.status,
+    yes: {
+      bid: yesBid,
+      ask: yesAsk,
+      mid: yesMid,
+      spread: yesAsk - yesBid,
+    },
+    no: {
+      bid: noBid,
+      ask: noAsk,
+      mid: noMid,
+      spread: noAsk - noBid,
+    },
+    volume: market.volume,
+    volume24h: market.volume_24h,
+    openInterest: market.open_interest,
+  };
+}
+
+// Format Polymarket market for display with YES and NO sides
+function formatPolymarketMarket(
+  market: PolymarketMarketDetails,
+  parsedMarkets?: any[]
+) {
+  // Try to get prices from parsed markets (which have live CLOB data)
+  const parsedMarket = parsedMarkets?.find(
+    (p) => p.id === market.id || p.slug === market.slug
+  );
+
+  let yesPrice = 0;
+  let noPrice = 0;
+
+  if (parsedMarket) {
+    yesPrice = parsedMarket.yesPrice || 0;
+    noPrice = parsedMarket.noPrice || 1 - yesPrice;
+  } else {
+    // Fall back to outcome prices from the market
+    const prices = market.outcomePrices || [];
+    yesPrice = parseFloat(prices[0] || "0");
+    noPrice = parseFloat(prices[1] || "0") || 1 - yesPrice;
+  }
+
+  // Extract range type from question
+  let rangeDisplay = market.groupItemTitle || "";
+  if (!rangeDisplay) {
+    const question = market.question.toLowerCase();
+    if (question.includes("less than") || question.includes("<")) {
+      const match = question.match(/(?:less than|<)\s*(\d+)/);
+      rangeDisplay = match ? `<${match[1]}` : market.question;
+    } else if (question.includes("or more") || question.includes("+")) {
+      const match = question.match(/(\d+)\s*(?:or more|\+)/);
+      rangeDisplay = match ? `${match[1]}+` : market.question;
+    } else {
+      const rangeMatch = question.match(/(\d+)[-–](\d+)/);
+      rangeDisplay = rangeMatch ? `${rangeMatch[1]}-${rangeMatch[2]}` : market.question;
+    }
+  }
+
+  return {
+    id: market.id,
+    question: market.question,
+    groupItemTitle: market.groupItemTitle,
+    rangeDisplay,
+    slug: market.slug,
+    endDate: market.end_date,
+    yes: {
+      price: yesPrice,
+      impliedProb: yesPrice,
+    },
+    no: {
+      price: noPrice,
+      impliedProb: noPrice,
+    },
+    volume: parseFloat(market.volume || "0"),
+    liquidity: parseFloat(market.liquidity || "0"),
+    active: market.active,
+    closed: market.closed,
+  };
+}
 
 export async function GET() {
   try {
@@ -32,7 +148,41 @@ export async function GET() {
       modelProbabilities = getModelProbabilities();
     }
 
-    // Try to fetch live market data
+    // Fetch detailed Kalshi data (including positions and orderbooks)
+    let kalshiDetails: {
+      markets: KalshiMarketDetails[];
+      positions: KalshiPosition[];
+      orderbooks: Record<string, KalshiOrderbook>;
+    } = { markets: [], positions: [], orderbooks: {} };
+
+    try {
+      kalshiDetails = await getNYCSnowstormMarketsWithDetails();
+    } catch (error) {
+      console.error("[API] Failed to fetch Kalshi details:", error);
+    }
+
+    // Fetch detailed Polymarket data
+    let polymarketDetails: {
+      markets: PolymarketMarketDetails[];
+      positions: PolymarketPosition[];
+      orderbooks: Record<string, PolymarketOrderbook>;
+      eventTitle: string;
+      eventEndDate: string;
+    } = {
+      markets: [],
+      positions: [],
+      orderbooks: {},
+      eventTitle: "NYC Snowfall Jan 24-26",
+      eventEndDate: "",
+    };
+
+    try {
+      polymarketDetails = await getPolymarketDetails();
+    } catch (error) {
+      console.error("[API] Failed to fetch Polymarket details:", error);
+    }
+
+    // Try to fetch basic market data for edge calculation
     let marketData;
     let usedManualPrices = false;
 
@@ -43,8 +193,12 @@ export async function GET() {
     }
 
     // If API didn't find markets, use manual prices
-    const hasLiveKalshi = marketData?.kalshi.markets.length ?? 0 > 0;
-    const hasLivePolymarket = marketData?.polymarket.markets.length ?? 0 > 0;
+    const hasLiveKalshi =
+      kalshiDetails.markets.length > 0 ||
+      (marketData?.kalshi.markets.length ?? 0) > 0;
+    const hasLivePolymarket =
+      polymarketDetails.markets.length > 0 ||
+      (marketData?.polymarket.markets.length ?? 0) > 0;
 
     let edges;
     if (!hasLiveKalshi && !hasLivePolymarket) {
@@ -60,10 +214,52 @@ export async function GET() {
       (e: any) => e.direction !== "NO_EDGE" && Math.abs(e.edge) >= 0.05
     );
 
+    // Format markets with YES/NO sides
+    const formattedKalshiMarkets = kalshiDetails.markets
+      .map(formatKalshiMarket)
+      .sort((a, b) => (a.threshold || 0) - (b.threshold || 0));
+
+    // Get parsed Polymarket markets with live prices
+    const parsedPolymarkets = marketData?.polymarket?.markets || [];
+    const formattedPolymarketMarkets = polymarketDetails.markets
+      .map((m) => formatPolymarketMarket(m, parsedPolymarkets))
+      .sort((a, b) => {
+        // Sort by range: <4, 4-6, 6-8, etc.
+        const getRangeLow = (display: string) => {
+          if (display.startsWith("<")) return 0;
+          const match = display.match(/^(\d+)/);
+          return match ? parseInt(match[1]) : 999;
+        };
+        return getRangeLow(a.rangeDisplay) - getRangeLow(b.rangeDisplay);
+      });
+
     return NextResponse.json({
       timestamp: new Date().toISOString(),
       modelProbabilities,
       dataSource: usedManualPrices ? "manual" : "live",
+
+      // Kalshi data
+      kalshi: {
+        eventTitle: "NYC Snowstorm Jan 26",
+        eventTicker: "KXSNOWSTORM-26JANNYC",
+        markets: formattedKalshiMarkets,
+        positions: kalshiDetails.positions,
+        orderbooks: kalshiDetails.orderbooks,
+        marketsFound: formattedKalshiMarkets.length,
+      },
+
+      // Polymarket data
+      polymarket: {
+        eventTitle: polymarketDetails.eventTitle,
+        eventSlug: "how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26",
+        eventEndDate: polymarketDetails.eventEndDate,
+        markets: formattedPolymarketMarkets,
+        positions: polymarketDetails.positions,
+        orderbooks: polymarketDetails.orderbooks,
+        marketsFound: formattedPolymarketMarkets.length,
+      },
+
+      // Legacy format for backward compatibility
       markets: usedManualPrices
         ? {
             kalshi: {
@@ -71,6 +267,7 @@ export async function GET() {
               markets: KALSHI_PRICES.map((p) => ({
                 threshold: p.threshold,
                 yesMid: p.yesPrice / 100,
+                noMid: 1 - p.yesPrice / 100,
                 direction: "over",
               })),
             },
@@ -82,6 +279,7 @@ export async function GET() {
                 rangeLow: p.rangeLow,
                 rangeHigh: p.rangeHigh,
                 yesPrice: p.yesPrice / 100,
+                noPrice: 1 - p.yesPrice / 100,
               })),
             },
           }
@@ -89,17 +287,18 @@ export async function GET() {
             kalshi: marketData?.kalshi,
             polymarket: marketData?.polymarket,
           },
+
       edges,
       highValueEdges,
+
       summary: {
-        kalshiMarketsFound: usedManualPrices
-          ? KALSHI_PRICES.length
-          : marketData?.kalshi.markets.length || 0,
-        polymarketMarketsFound: usedManualPrices
-          ? POLYMARKET_PRICES.length
-          : marketData?.polymarket.markets.length || 0,
+        kalshiMarketsFound: formattedKalshiMarkets.length || KALSHI_PRICES.length,
+        polymarketMarketsFound:
+          formattedPolymarketMarkets.length || POLYMARKET_PRICES.length,
         edgeOpportunities: highValueEdges.length,
         usingManualPrices: usedManualPrices,
+        kalshiPositions: kalshiDetails.positions.length,
+        polymarketPositions: polymarketDetails.positions.length,
       },
     });
   } catch (error) {
