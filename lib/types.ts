@@ -31,6 +31,12 @@ export interface Timing {
   snowEnds: string;
 }
 
+export interface DataSourceStatus {
+  status: string;
+  updateTime?: string | null;
+  issueTime?: string | null;
+}
+
 export interface ForecastData {
   modelRunTimestamp: string;
   dataSourcesUsed: string[];
@@ -40,4 +46,8 @@ export interface ForecastData {
   modelInputs: Record<string, ModelInput>;
   keyUncertainties: string[];
   timing: Timing;
+  dataSources?: {
+    nwsForecast?: DataSourceStatus;
+    nwsAFD?: DataSourceStatus;
+  };
 }
