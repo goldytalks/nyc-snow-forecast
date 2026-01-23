@@ -17,10 +17,10 @@ Dashboard should be dark-themed, modern, and deployed to Vercel.
 - Recharts
 
 ## Current Status
-- [ ] Phase 1: Project setup + Vercel deploy
-- [ ] Phase 2: Dashboard shell with all components
-- [ ] Phase 3: Probability model + data
-- [ ] Phase 4: Connect data + polish
+- [x] Phase 1: Project setup + Vercel deploy
+- [x] Phase 2: Dashboard shell with all components
+- [x] Phase 3: Probability model + data
+- [x] Phase 4: Connect data + polish
 
 ## Design Requirements
 - Dark background (#0a0a0a)
@@ -50,4 +50,4 @@ Strike probabilities needed for: 2", 4", 6", 8", 10", 12", 15", 18", 20", 24"
 4. Commit what works, iterate
 
 ## Vercel Deployment
-Project URL: [Will be set after first deploy]
+Production URL: https://nyc-snow-forecast.vercel.app
