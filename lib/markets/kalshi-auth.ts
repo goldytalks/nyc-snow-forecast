@@ -63,8 +63,12 @@ function generateAuthHeaders(
   // Strip query parameters from path for signing
   const pathWithoutQuery = path.split("?")[0];
 
-  // Message to sign: timestamp + method + path (without query params)
-  const message = timestamp + method.toUpperCase() + pathWithoutQuery;
+  // IMPORTANT: The signature must include the full path from the base URL
+  // e.g., "/trade-api/v2/portfolio/positions" not just "/portfolio/positions"
+  const fullPath = `/trade-api/v2${pathWithoutQuery}`;
+
+  // Message to sign: timestamp + method + full path (with base path prefix)
+  const message = timestamp + method.toUpperCase() + fullPath;
 
   // Sign with RSA-PSS using SHA256
   const privateKey = crypto.createPrivateKey(privateKeyPem);
