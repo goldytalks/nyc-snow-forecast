@@ -239,16 +239,53 @@ export async function GET() {
       modelProbabilities,
       dataSource: usedManualPrices ? "manual" : "live",
 
-      // Kalshi data
-      kalshi: {
-        eventTitle: "NYC Snowstorm Jan 26",
-        eventTicker: "KXSNOWSTORM-26JANNYC",
-        markets: formattedKalshiMarkets,
-        positions: kalshiDetails.positions,
-        orderbooks: kalshiDetails.orderbooks,
-        marketsFound: formattedKalshiMarkets.length,
-        authStatus: kalshiDetails.authStatus || { authenticated: false },
-      },
+      // Kalshi data with P&L calculation
+      kalshi: (() => {
+        // Calculate unrealized P&L for each position based on current market prices
+        const positionsWithPnL = kalshiDetails.positions.map((pos) => {
+          const market = formattedKalshiMarkets.find((m) => m.ticker === pos.ticker);
+          const currentPrice = market?.yes?.mid || 0;
+          const entryPrice = pos.average_price;
+          const positionSize = Math.abs(pos.position);
+          const isLong = pos.position > 0;
+
+          // P&L = (current - entry) * size for long, (entry - current) * size for short
+          const unrealizedPnl = isLong
+            ? (currentPrice - entryPrice) * positionSize
+            : (entryPrice - currentPrice) * positionSize;
+
+          const currentValue = currentPrice * positionSize;
+
+          return {
+            ...pos,
+            currentPrice,
+            unrealized_pnl: unrealizedPnl,
+            current_value: currentValue,
+            pnl_percent: pos.total_cost > 0 ? (unrealizedPnl / pos.total_cost) * 100 : 0,
+          };
+        });
+
+        // Calculate totals
+        const totalCost = positionsWithPnL.reduce((sum, p) => sum + p.total_cost, 0);
+        const totalUnrealizedPnl = positionsWithPnL.reduce((sum, p) => sum + p.unrealized_pnl, 0);
+        const totalCurrentValue = positionsWithPnL.reduce((sum, p) => sum + p.current_value, 0);
+
+        return {
+          eventTitle: "NYC Snowstorm Jan 26",
+          eventTicker: "KXSNOWSTORM-26JANNYC",
+          markets: formattedKalshiMarkets,
+          positions: positionsWithPnL,
+          positionSummary: {
+            totalCost,
+            totalUnrealizedPnl,
+            totalCurrentValue,
+            totalPnlPercent: totalCost > 0 ? (totalUnrealizedPnl / totalCost) * 100 : 0,
+          },
+          orderbooks: kalshiDetails.orderbooks,
+          marketsFound: formattedKalshiMarkets.length,
+          authStatus: kalshiDetails.authStatus || { authenticated: false },
+        };
+      })(),
 
       // Polymarket data
       polymarket: {
