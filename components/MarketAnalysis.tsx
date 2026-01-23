@@ -62,8 +62,19 @@ interface Position {
   size?: number;
   outcome?: string;
   average_price: number;
+  currentPrice?: number;
   unrealized_pnl?: number;
   realized_pnl?: number;
+  current_value?: number;
+  total_cost?: number;
+  pnl_percent?: number;
+}
+
+interface PositionSummary {
+  totalCost: number;
+  totalUnrealizedPnl: number;
+  totalCurrentValue: number;
+  totalPnlPercent: number;
 }
 
 interface AuthStatus {
@@ -81,6 +92,7 @@ interface MarketAPIResponse {
     eventTicker: string;
     markets: KalshiMarket[];
     positions: Position[];
+    positionSummary?: PositionSummary;
     orderbooks: Record<string, any>;
     marketsFound: number;
     authStatus?: AuthStatus;
@@ -228,6 +240,134 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
         </button>
       </div>
 
+      {/* Portfolio Summary - Your Positions & P&L */}
+      {liveData?.kalshi?.positions && liveData.kalshi.positions.length > 0 && (
+        <Card className="bg-card border-border border-emerald-500/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-medium flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-emerald-400" />
+                  Your Positions & P&L
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Real-time portfolio tracking on Kalshi
+                </p>
+              </div>
+              {liveData.kalshi.positionSummary && (
+                <div className="text-right">
+                  <div className={`text-2xl font-bold font-mono ${
+                    liveData.kalshi.positionSummary.totalUnrealizedPnl >= 0
+                      ? "text-emerald-400"
+                      : "text-red-400"
+                  }`}>
+                    {liveData.kalshi.positionSummary.totalUnrealizedPnl >= 0 ? "+" : ""}
+                    ${liveData.kalshi.positionSummary.totalUnrealizedPnl.toFixed(2)}
+                  </div>
+                  <div className={`text-xs font-mono ${
+                    liveData.kalshi.positionSummary.totalPnlPercent >= 0
+                      ? "text-emerald-400/70"
+                      : "text-red-400/70"
+                  }`}>
+                    {liveData.kalshi.positionSummary.totalPnlPercent >= 0 ? "+" : ""}
+                    {liveData.kalshi.positionSummary.totalPnlPercent.toFixed(1)}% total return
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Position Cards */}
+            <div className="space-y-3">
+              {liveData.kalshi.positions.map((pos, i) => {
+                const isProfit = (pos.unrealized_pnl || 0) >= 0;
+                const isLong = (pos.position || 0) > 0;
+                // Extract threshold from ticker (e.g., "KXSNOWSTORM-26JANNYC-10.0" -> "10")
+                const thresholdMatch = pos.ticker?.match(/-(\d+(?:\.\d+)?)$/);
+                const threshold = thresholdMatch ? thresholdMatch[1] : pos.ticker;
+
+                return (
+                  <div
+                    key={i}
+                    className={`p-4 rounded-lg border ${
+                      isProfit
+                        ? "bg-emerald-500/5 border-emerald-500/20"
+                        : "bg-red-500/5 border-red-500/20"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={isLong
+                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                              : "bg-red-500/20 text-red-400 border-red-500/40"
+                            }
+                          >
+                            {isLong ? "YES" : "NO"} × {Math.abs(pos.position || 0)}
+                          </Badge>
+                          <span className="font-semibold text-lg">
+                            Above {threshold}" of snow
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Entry:</span>
+                            <span className="font-mono">${pos.average_price.toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Current:</span>
+                            <span className="font-mono">${(pos.currentPrice || 0).toFixed(3)}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Cost:</span>
+                            <span className="font-mono">${(pos.total_cost || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Value:</span>
+                            <span className="font-mono">${(pos.current_value || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xl font-bold font-mono ${
+                          isProfit ? "text-emerald-400" : "text-red-400"
+                        }`}>
+                          {isProfit ? "+" : ""}${(pos.unrealized_pnl || 0).toFixed(2)}
+                        </div>
+                        <div className={`text-sm font-mono ${
+                          isProfit ? "text-emerald-400/70" : "text-red-400/70"
+                        }`}>
+                          {isProfit ? "+" : ""}{(pos.pnl_percent || 0).toFixed(1)}%
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {isProfit ? "▲" : "▼"} {Math.abs(((pos.currentPrice || 0) - pos.average_price) * 100).toFixed(1)}¢ per share
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Summary Row */}
+            {liveData.kalshi.positionSummary && (
+              <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Total Investment:</span>{" "}
+                  ${liveData.kalshi.positionSummary.totalCost.toFixed(2)}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Current Value:</span>{" "}
+                  ${liveData.kalshi.positionSummary.totalCurrentValue.toFixed(2)}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Top Opportunities */}
       {opportunities.length > 0 && (
         <Card className="bg-card border-border border-amber-500/30">
@@ -299,26 +439,6 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
             </div>
           )}
 
-          {/* Positions Section */}
-          {liveData?.kalshi?.positions && liveData.kalshi.positions.length > 0 && (
-            <div className="mb-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-              <div className="flex items-center gap-2 mb-2 text-sm font-medium text-emerald-400">
-                <Wallet className="w-4 h-4" />
-                Your Positions
-              </div>
-              <div className="space-y-1">
-                {liveData.kalshi.positions.map((pos, i) => (
-                  <div key={i} className="flex justify-between text-xs">
-                    <span>{pos.market_title || pos.ticker}</span>
-                    <span className={pos.position! > 0 ? "text-emerald-400" : "text-red-400"}>
-                      {pos.position! > 0 ? "YES" : "NO"} × {Math.abs(pos.position!)} @ {formatPrice(pos.average_price)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -340,15 +460,21 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
               </thead>
               <tbody>
                 {liveData?.kalshi?.markets && liveData.kalshi.markets.length > 0
-                  ? liveData.kalshi.markets.map((market) => (
-                      <KalshiMarketRow
-                        key={market.ticker}
-                        market={market}
-                        edge={kalshiEdges.find((e) =>
-                          e.market.includes(market.title.replace(/[^0-9.]/g, ""))
-                        )}
-                      />
-                    ))
+                  ? liveData.kalshi.markets.map((market) => {
+                      const position = liveData.kalshi.positions?.find(
+                        (p) => p.ticker === market.ticker
+                      );
+                      return (
+                        <KalshiMarketRow
+                          key={market.ticker}
+                          market={market}
+                          edge={kalshiEdges.find((e) =>
+                            e.market.includes(market.title.replace(/[^0-9.]/g, ""))
+                          )}
+                          position={position}
+                        />
+                      );
+                    })
                   : kalshiEdges.map((edge) => (
                       <tr
                         key={edge.market}
@@ -541,17 +667,47 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
 function KalshiMarketRow({
   market,
   edge,
+  position,
 }: {
   market: KalshiMarket;
   edge?: EdgeAnalysis;
+  position?: Position;
 }) {
   const edgePct = edge ? getEdgePct(edge) : 0;
   const hasEdge = edge && edge.direction !== "NO_EDGE";
+  const hasPosition = position && position.position !== 0;
+  const isLong = hasPosition && (position.position || 0) > 0;
+  const pnl = position?.unrealized_pnl || 0;
+  const isProfit = pnl >= 0;
 
   return (
-    <tr className={`border-b border-border/50 ${hasEdge ? "bg-muted/30" : ""}`}>
+    <tr className={`border-b border-border/50 ${hasPosition ? "bg-emerald-500/5" : hasEdge ? "bg-muted/30" : ""}`}>
       <td className="py-3 pr-2">
-        <div className="font-medium text-sm">{market.title}</div>
+        <div className="flex items-center gap-2">
+          <div className="font-medium text-sm">{market.title}</div>
+          {hasPosition && (
+            <Badge
+              variant="outline"
+              className={isLong
+                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-[10px] px-1.5 py-0"
+                : "bg-red-500/20 text-red-400 border-red-500/40 text-[10px] px-1.5 py-0"
+              }
+            >
+              {isLong ? "YES" : "NO"} ×{Math.abs(position.position || 0)}
+            </Badge>
+          )}
+        </div>
+        {hasPosition && (
+          <div className="flex items-center gap-3 mt-1 text-[10px]">
+            <span className="text-muted-foreground">
+              Entry: <span className="font-mono">${position.average_price.toFixed(2)}</span>
+            </span>
+            <span className={isProfit ? "text-emerald-400" : "text-red-400"}>
+              P&L: <span className="font-mono font-semibold">{isProfit ? "+" : ""}${pnl.toFixed(2)}</span>
+              <span className="ml-1">({isProfit ? "+" : ""}{(position.pnl_percent || 0).toFixed(1)}%)</span>
+            </span>
+          </div>
+        )}
       </td>
       {/* YES Orderbook */}
       <td className="py-3 px-1">
