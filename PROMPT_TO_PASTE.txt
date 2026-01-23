@@ -1,0 +1,15 @@
+Read PROJECT_SPEC.md and CLAUDE.md carefully. Then build this NYC snowfall prediction dashboard autonomously.
+
+Execute in this order:
+1. First, initialize the Next.js project with: npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir=false --import-alias="@/*" --use-npm
+2. Install dependencies: npm install recharts lucide-react
+3. Initialize shadcn: npx shadcn-ui@latest init (choose dark mode, neutral)
+4. Add shadcn components: npx shadcn-ui@latest add card badge progress
+5. Create the folder structure from the spec
+6. Build a working dashboard shell with mock data
+7. Deploy to Vercel with: npx vercel
+8. Then iterate on the probability model and visualizations
+
+Commit after each major step. Prioritize getting something deployed to Vercel quickly so I can check progress remotely.
+
+Work autonomously - only ask me if you hit a blocker that requires a decision. I'll check back in 30-60 minutes.

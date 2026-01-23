@@ -1,65 +1,84 @@
-import Image from "next/image";
+import { HeroForecast } from "@/components/HeroForecast";
+import { ProbabilityChart } from "@/components/ProbabilityChart";
+import { StrikeCards } from "@/components/StrikeCards";
+import { ScenarioBreakdown } from "@/components/ScenarioBreakdown";
+import { ModelComparison } from "@/components/ModelComparison";
+import { UncertaintyPanel } from "@/components/UncertaintyPanel";
+import { StatusIndicator } from "@/components/StatusIndicator";
+import { TimingPanel } from "@/components/TimingPanel";
+import { MapPin, Snowflake } from "lucide-react";
+import forecastData from "@/data/forecast.json";
+import type { ForecastData } from "@/lib/types";
+
+const data = forecastData as ForecastData;
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen px-4 py-8 md:px-8 lg:px-12">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
+              <Snowflake className="w-8 h-8 text-emerald-400" />
+              NYC Snowfall Forecast
+            </h1>
+            <p className="text-muted-foreground mt-1 flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              Central Park • January 24-26, 2026
+            </p>
+          </div>
+          <StatusIndicator
+            timestamp={data.modelRunTimestamp}
+            sources={data.dataSourcesUsed}
+          />
+        </header>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+          {/* Hero Forecast */}
+          <HeroForecast distribution={data.distribution} />
+
+          {/* Probability Chart */}
+          <ProbabilityChart strikeProbabilities={data.strikeProbabilities} />
+        </div>
+
+        {/* Strike Probability Cards */}
+        <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
+          <h2 className="text-lg font-medium mb-3 text-muted-foreground">
+            Threshold Probabilities
+          </h2>
+          <StrikeCards strikeProbabilities={data.strikeProbabilities} />
+        </div>
+
+        {/* Secondary Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in" style={{ animationDelay: "0.3s" }}>
+          {/* Scenarios */}
+          <ScenarioBreakdown scenarios={data.scenarios} />
+
+          {/* Model Comparison */}
+          <ModelComparison modelInputs={data.modelInputs} />
+
+          {/* Timing */}
+          <TimingPanel timing={data.timing} />
+        </div>
+
+        {/* Uncertainties */}
+        <div className="animate-fade-in" style={{ animationDelay: "0.4s" }}>
+          <UncertaintyPanel uncertainties={data.keyUncertainties} />
+        </div>
+
+        {/* Footer */}
+        <footer className="text-center text-sm text-muted-foreground pt-8 border-t border-border animate-fade-in" style={{ animationDelay: "0.5s" }}>
+          <p>
+            Probabilistic forecast model for Central Park snowfall.
+            Settlement based on NWS official measurements.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          <p className="mt-1">
+            Data sources: NWS, ECMWF, GFS, NAM
+          </p>
+        </footer>
+      </div>
+    </main>
   );
 }
