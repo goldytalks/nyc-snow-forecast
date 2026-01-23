@@ -1,4 +1,4 @@
-import { scenarios, type Scenario } from "./scenarios";
+import { scenarios as defaultScenarios, type Scenario } from "./scenarios";
 
 /**
  * Standard normal CDF approximation using Zelen & Severo (1964)
@@ -38,10 +38,13 @@ function scenarioProbExceedingThreshold(
 /**
  * Calculate P(snow > threshold) as weighted sum across all scenarios
  */
-export function calculateExceedanceProbability(threshold: number): number {
+export function calculateExceedanceProbability(
+  threshold: number,
+  scenarioList: Scenario[] = defaultScenarios
+): number {
   let probability = 0;
 
-  for (const scenario of scenarios) {
+  for (const scenario of scenarioList) {
     const scenarioExceedance = scenarioProbExceedingThreshold(
       threshold,
       scenario.snowfallMean,
@@ -56,12 +59,17 @@ export function calculateExceedanceProbability(threshold: number): number {
 /**
  * Calculate strike probabilities for all standard thresholds
  */
-export function calculateAllStrikeProbabilities(): Record<string, number> {
-  const thresholds = [2, 4, 6, 8, 10, 12, 15, 18, 20, 24];
+export function calculateAllStrikeProbabilities(
+  scenarioList: Scenario[] = defaultScenarios
+): Record<string, number> {
+  const thresholds = [2, 4, 6, 8, 10, 12, 14, 15, 16, 18, 20, 24];
   const result: Record<string, number> = {};
 
   for (const threshold of thresholds) {
-    result[threshold.toString()] = calculateExceedanceProbability(threshold);
+    result[threshold.toString()] = calculateExceedanceProbability(
+      threshold,
+      scenarioList
+    );
   }
 
   return result;
@@ -70,15 +78,17 @@ export function calculateAllStrikeProbabilities(): Record<string, number> {
 /**
  * Calculate distribution statistics from the mixture model
  */
-export function calculateDistributionStats() {
+export function calculateDistributionStats(
+  scenarioList: Scenario[] = defaultScenarios
+) {
   // Mean is weighted average of scenario means
-  const mean = scenarios.reduce(
+  const mean = scenarioList.reduce(
     (sum, s) => sum + s.probability * s.snowfallMean,
     0
   );
 
   // Variance is weighted average of (variance + squared deviation from overall mean)
-  const variance = scenarios.reduce((sum, s) => {
+  const variance = scenarioList.reduce((sum, s) => {
     const scenarioVariance = s.snowfallStdDev ** 2;
     const deviationSquared = (s.snowfallMean - mean) ** 2;
     return sum + s.probability * (scenarioVariance + deviationSquared);
@@ -87,11 +97,11 @@ export function calculateDistributionStats() {
   const stdDev = Math.sqrt(variance);
 
   // Approximate percentiles using simulation
-  const p10 = approximatePercentile(0.1);
-  const p25 = approximatePercentile(0.25);
-  const p50 = approximatePercentile(0.5);
-  const p75 = approximatePercentile(0.75);
-  const p90 = approximatePercentile(0.9);
+  const p10 = approximatePercentile(0.1, scenarioList);
+  const p25 = approximatePercentile(0.25, scenarioList);
+  const p50 = approximatePercentile(0.5, scenarioList);
+  const p75 = approximatePercentile(0.75, scenarioList);
+  const p90 = approximatePercentile(0.9, scenarioList);
 
   return {
     mean: Math.round(mean * 10) / 10,
@@ -107,18 +117,21 @@ export function calculateDistributionStats() {
 /**
  * Approximate a percentile using binary search on the CDF
  */
-function approximatePercentile(p: number): number {
+function approximatePercentile(
+  p: number,
+  scenarioList: Scenario[] = defaultScenarios
+): number {
   // We want to find x such that P(X <= x) = p
   // P(X <= x) = 1 - P(X > x)
   // So we want P(X > x) = 1 - p
 
   const targetExceedance = 1 - p;
   let low = 0;
-  let high = 30;
+  let high = 35;
 
   for (let i = 0; i < 50; i++) {
     const mid = (low + high) / 2;
-    const exceedance = calculateExceedanceProbability(mid);
+    const exceedance = calculateExceedanceProbability(mid, scenarioList);
 
     if (exceedance > targetExceedance) {
       low = mid;
@@ -128,4 +141,23 @@ function approximatePercentile(p: number): number {
   }
 
   return (low + high) / 2;
+}
+
+/**
+ * Calculate full distribution summary for a given set of scenarios
+ */
+export function calculateFullDistribution(scenarioList: Scenario[]) {
+  const strikeProbabilities = calculateAllStrikeProbabilities(scenarioList);
+  const stats = calculateDistributionStats(scenarioList);
+
+  // Round probabilities
+  const roundedProbabilities: Record<string, number> = {};
+  for (const [key, value] of Object.entries(strikeProbabilities)) {
+    roundedProbabilities[key] = Math.round(value * 1000) / 1000;
+  }
+
+  return {
+    strikeProbabilities: roundedProbabilities,
+    ...stats,
+  };
 }
