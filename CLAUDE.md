@@ -5,12 +5,29 @@ Building a probability model + dashboard to predict Central Park snowfall for Ja
 Dashboard should be dark-themed, modern, and deployed to Vercel.
 
 ## IMPORTANT: Change Workflow
-**Every time changes are made to this project:**
-1. Log all changes to the Changelog section below
-2. Commit changes with descriptive message
-3. Push to GitHub: `git push`
-4. Deploy to Vercel: `npx vercel --prod --yes`
-5. Verify deployment at https://nyc-snow-forecast.vercel.app
+
+**MANDATORY for every session/change:**
+
+### 1. Document All Progress
+- Log ALL changes, updates, and progress to the Changelog section below
+- Include: what changed, which files were modified, and why
+- Be specific (e.g., "Fixed edge calculation" not just "bug fix")
+
+### 2. Push to GitHub + Deploy to Vercel
+After EVERY change, run these commands:
+```bash
+git add -A && git commit -m "Description of changes" && git push
+npx vercel --prod --yes
+```
+
+### Full Workflow Checklist:
+1. Make changes to code
+2. Test locally (`npm run dev`)
+3. Log changes to Changelog section below
+4. Commit with descriptive message
+5. Push to GitHub: `git push`
+6. Deploy to Vercel: `npx vercel --prod --yes`
+7. Verify at https://nyc-snow-forecast.vercel.app
 
 ## Quick Commands
 - `npm run dev` - Start local server at http://localhost:3000
