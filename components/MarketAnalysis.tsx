@@ -43,6 +43,7 @@ interface PolymarketMarket {
   id: string;
   question: string;
   groupItemTitle?: string;
+  rangeDisplay?: string;
   slug: string;
   endDate: string;
   yes: { price: number; impliedProb: number };
@@ -85,6 +86,8 @@ interface AuthStatus {
 interface MarketAPIResponse {
   timestamp: string;
   dataSource: "live" | "manual";
+  modelProbabilities?: Record<string, number>;
+  polymarketBucketProbabilities?: Record<string, number>;
   edges: EdgeAnalysis[];
   highValueEdges: EdgeAnalysis[];
   kalshi: {
@@ -590,15 +593,27 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
               </thead>
               <tbody>
                 {liveData?.polymarket?.markets && liveData.polymarket.markets.length > 0
-                  ? liveData.polymarket.markets.map((market) => (
-                      <PolymarketMarketRow
-                        key={market.id}
-                        market={market}
-                        edge={polymarketEdges.find((e) =>
-                          market.question.toLowerCase().includes(e.market.toLowerCase().replace(/[<>+"]/g, ""))
-                        )}
-                      />
-                    ))
+                  ? liveData.polymarket.markets.map((market) => {
+                      // Match edge using rangeDisplay which has standardized format like "<4", "4-6", "14+"
+                      const rangeDisplay = (market as any).rangeDisplay || market.groupItemTitle || "";
+                      const normalizedRange = rangeDisplay.replace(/["\s]/g, "").toLowerCase();
+
+                      const matchedEdge = polymarketEdges.find((e) => {
+                        const edgeMarket = e.market.replace(/["\s]/g, "").toLowerCase();
+                        return edgeMarket === normalizedRange ||
+                               normalizedRange.includes(edgeMarket) ||
+                               edgeMarket.includes(normalizedRange);
+                      });
+
+                      return (
+                        <PolymarketMarketRow
+                          key={market.id}
+                          market={market}
+                          edge={matchedEdge}
+                          bucketProbabilities={liveData.polymarketBucketProbabilities}
+                        />
+                      );
+                    })
                   : polymarketEdges.map((edge) => (
                       <tr
                         key={edge.market}
@@ -779,16 +794,39 @@ function KalshiMarketRow({
 function PolymarketMarketRow({
   market,
   edge,
+  bucketProbabilities,
 }: {
   market: PolymarketMarket;
   edge?: EdgeAnalysis;
+  bucketProbabilities?: Record<string, number>;
 }) {
-  const edgePct = edge ? getEdgePct(edge) : 0;
-  const hasEdge = edge && edge.direction !== "NO_EDGE";
-
-  // Extract range from question
+  // Extract range from market
   const rangeMatch = market.question.match(/(\d+[-–]\d+|\d+\+|<\d+|under \d+)/i);
-  const range = market.groupItemTitle || rangeMatch?.[0] || market.question.substring(0, 20);
+  const range = market.rangeDisplay || market.groupItemTitle || rangeMatch?.[0] || market.question.substring(0, 20);
+
+  // Get model probability - from edge or from bucket probabilities
+  let modelProb: number | undefined;
+  if (edge?.modelProb !== undefined) {
+    modelProb = edge.modelProb;
+  } else if (bucketProbabilities) {
+    // Try to match range to bucket probabilities
+    const normalizedRange = range.replace(/["\s]/g, "");
+    modelProb = bucketProbabilities[normalizedRange] ||
+                bucketProbabilities[range] ||
+                bucketProbabilities[range.replace('"', '')];
+  }
+
+  // Calculate edge
+  const marketProb = market.yes.price;
+  const edgeValue = modelProb !== undefined ? modelProb - marketProb : 0;
+  const edgePct = edgeValue * 100;
+
+  // Determine signal direction
+  let direction: "BUY_YES" | "BUY_NO" | "NO_EDGE" = "NO_EDGE";
+  if (edgeValue > 0.03) direction = "BUY_YES";
+  else if (edgeValue < -0.03) direction = "BUY_NO";
+
+  const hasEdge = direction !== "NO_EDGE";
 
   return (
     <tr className={`border-b border-border/50 ${hasEdge ? "bg-muted/30" : ""}`}>
@@ -817,7 +855,7 @@ function PolymarketMarketRow({
       <td className="py-3 px-2 text-right">
         <div className="text-[10px] text-muted-foreground">model</div>
         <div className="font-mono text-sm">
-          {edge ? formatProb(edge.modelProb) : "—"}
+          {modelProb !== undefined ? formatProb(modelProb) : "—"}
         </div>
       </td>
       {/* Edge */}
@@ -845,7 +883,7 @@ function PolymarketMarketRow({
       </td>
       {/* Signal */}
       <td className="py-3 pl-1 text-right">
-        {edge ? <SignalBadge direction={edge.direction} /> : <span className="text-xs text-muted-foreground">—</span>}
+        <SignalBadge direction={direction} />
       </td>
     </tr>
   );

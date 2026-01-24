@@ -140,9 +140,12 @@ export async function GET() {
   try {
     // Get current model probabilities
     let modelProbabilities: Record<string, number>;
+    let polymarketBucketProbabilities: Record<string, number> = {};
     try {
       const forecast = await getCurrentForecast();
       modelProbabilities = forecast.strikeProbabilities;
+      // Get Polymarket bucket probabilities directly from the model
+      polymarketBucketProbabilities = forecast.polymarketProbabilities || {};
     } catch {
       // Fall back to defaults
       modelProbabilities = getModelProbabilities();
@@ -237,6 +240,7 @@ export async function GET() {
     return NextResponse.json({
       timestamp: new Date().toISOString(),
       modelProbabilities,
+      polymarketBucketProbabilities,
       dataSource: usedManualPrices ? "manual" : "live",
 
       // Kalshi data with P&L calculation
