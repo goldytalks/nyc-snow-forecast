@@ -93,6 +93,14 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-24 (Evening - Update 4)
+- **Fixed Chatbot**: Chat feature now works without requiring Anthropic API key
+  - Added local response generation as fallback when API key is unavailable
+  - Handles common questions: likely snowfall, thresholds, mixing, Polymarket, timing
+  - Uses live forecast data for accurate, dynamic responses
+  - Graceful degradation - uses Claude API when available, local otherwise
+- Files changed: `app/api/chat/route.ts`
+
 ### 2026-01-24 (Evening - Update 3)
 - **Added Chatbot**: AI-powered chat assistant for forecast questions
   - New `/api/chat` endpoint using Claude API with forecast context
