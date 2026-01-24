@@ -76,6 +76,15 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-24 (Evening - Update 2)
+- **Polymarket Model & Edge Display**: Fixed Polymarket table to show model probabilities and edge
+  - Fixed edge matching logic using `rangeDisplay` field
+  - Added `polymarketBucketProbabilities` to API response
+  - Updated `PolymarketMarketRow` to calculate edge from bucket probabilities
+  - Model and Edge columns now display correctly for all ranges (<4", 4-6", etc.)
+- Files changed: `components/MarketAnalysis.tsx`, `app/api/markets/route.ts`
+- Deployed to Vercel
+
 ### 2026-01-24 (Evening)
 - **Central Park Optimization**: Updated model to be coastal-specific
   - Applied coastal correction factor (85%) to NWS regional data
