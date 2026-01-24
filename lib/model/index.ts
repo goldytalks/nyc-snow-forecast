@@ -89,10 +89,105 @@ function convertToScenarioInput(data: UnifiedForecastData): ParsedForecastData {
  * Run the full forecast model with unified NWS data
  */
 export function runForecastModelWithData(data: UnifiedForecastData): ForecastOutput {
+  if (USE_IMPROVED_MODEL) {
+    // Use improved model but incorporate NWS data
+    return runForecastModelImprovedWithData(data);
+  }
+
   const parsedData = convertToScenarioInput(data);
   const generatedScenarios = generateScenarios(parsedData);
 
   return runForecastModelWithScenarios(generatedScenarios, data);
+}
+
+/**
+ * Run improved model with NWS data
+ */
+function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOutput {
+  // Convert NWS data to conditions for improved model
+  const conditions = {
+    nwsLow: data.combined.snowfallRange.low,
+    nwsHigh: data.combined.snowfallRange.high,
+    nwsMedian: (data.combined.snowfallRange.low + data.combined.snowfallRange.high) / 2,
+    mixingRisk: data.combined.mixingExpected ? "medium" as const : "low" as const,
+    trackUncertainty: "medium" as const,
+    observedSnowfall: 0,
+    modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
+                 Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam),
+  };
+
+  const improvedScenarios = generateImprovedScenarios(conditions);
+  const kalshiProbs = calculateKalshiProbabilities(improvedScenarios);
+  const polymarketProbs = calculatePolymarketProbabilities(improvedScenarios);
+
+  const mean = improvedScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
+  const now = new Date().toISOString();
+
+  const scenarioColors: Record<string, string> = {
+    "NWS Forecast Verifies": "#3b82f6",
+    "High-End (All Snow)": "#10b981",
+    "Extended Mixing": "#f59e0b",
+    "Significant Underperformance": "#ef4444",
+  };
+
+  return {
+    modelRunTimestamp: now,
+    modelVersion: "improved",
+    dataSourcesUsed: ["NWS_point_forecast", "NWS_AFD", "GFS", "ECMWF", "NAM"],
+    distribution: {
+      median: Math.round(conditions.nwsMedian * 10) / 10,
+      mean: Math.round(mean * 10) / 10,
+      stdDev: 3.5,
+      p10: Math.round((conditions.nwsLow - 2) * 10) / 10,
+      p25: Math.round(conditions.nwsLow * 10) / 10,
+      p75: Math.round(conditions.nwsHigh * 10) / 10,
+      p90: Math.round((conditions.nwsHigh + 3) * 10) / 10,
+    },
+    strikeProbabilities: kalshiProbs,
+    kalshiProbabilities: kalshiProbs,
+    polymarketProbabilities: polymarketProbs,
+    scenarios: improvedScenarios.map((s) => ({
+      name: s.name,
+      probability: Math.round(s.probability * 1000) / 1000,
+      snowfallMean: s.mean,
+      snowfallRange: [
+        Math.round((s.mean - 1.5 * s.stdDev) * 10) / 10,
+        Math.round((s.mean + 1.5 * s.stdDev) * 10) / 10,
+      ] as [number, number],
+      color: scenarioColors[s.name] || "#6b7280",
+      description: s.description,
+    })),
+    modelInputs: {
+      nws: {
+        range: [conditions.nwsLow, conditions.nwsHigh] as [number, number],
+        confidence: data.combined.confidence || "medium",
+      },
+      ecmwf: { value: data.modelEstimates.ecmwf, trend: "steady" },
+      gfs: { value: data.modelEstimates.gfs, trend: "steady" },
+      nam: { value: data.modelEstimates.nam, trend: "steady" },
+    },
+    keyUncertainties: [
+      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC area`,
+      `Mixing risk: ${conditions.mixingRisk} - ${data.combined.mixingTiming || "timing uncertain"}`,
+      `Model uses Gamma distribution for proper right-skew`,
+    ],
+    timing: {
+      snowStarts: "2026-01-25T06:00:00Z",
+      heaviestSnow: "2026-01-25T12:00:00Z",
+      mixingWindow: ["2026-01-25T22:00:00Z", "2026-01-26T04:00:00Z"],
+      snowEnds: "2026-01-26T12:00:00Z",
+    },
+    dataSources: {
+      nwsForecast: {
+        status: data.sources.nwsForecast.status,
+        updateTime: data.sources.nwsForecast.updateTime,
+      },
+      nwsAFD: {
+        status: data.sources.nwsAFD.status,
+        issueTime: data.sources.nwsAFD.issueTime,
+      },
+    },
+  };
 }
 
 /**
