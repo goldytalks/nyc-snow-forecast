@@ -93,6 +93,17 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-24 (Evening - Update 3)
+- **Added Chatbot**: AI-powered chat assistant for forecast questions
+  - New `/api/chat` endpoint using Claude API with forecast context
+  - New `ForecastChat.tsx` component with floating chat UI
+  - Suggested questions for common queries
+  - Chat has full access to current model data, probabilities, and scenarios
+  - Added `@anthropic-ai/sdk` dependency
+  - Created `components/ui/input.tsx` and `components/ui/button.tsx`
+- Files changed: `app/api/chat/route.ts`, `components/ForecastChat.tsx`, `app/page.tsx`
+- Deployed to Vercel
+
 ### 2026-01-24 (Evening - Update 2)
 - **Polymarket Model & Edge Display**: Fixed Polymarket table to show model probabilities and edge
   - Fixed edge matching logic using `rangeDisplay` field

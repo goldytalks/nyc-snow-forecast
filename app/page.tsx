@@ -1,5 +1,6 @@
 import { RealtimeProvider } from "@/components/RealtimeProvider";
 import { Dashboard } from "@/components/Dashboard";
+import { ForecastChat } from "@/components/ForecastChat";
 import { getCurrentForecast } from "@/lib/realtime/polling";
 import { runForecastModel } from "@/lib/model";
 import type { ForecastData } from "@/lib/types";
@@ -47,6 +48,7 @@ export default async function Home() {
   return (
     <RealtimeProvider initialData={initialData}>
       <Dashboard initialData={initialData} />
+      <ForecastChat />
     </RealtimeProvider>
   );
 }
