@@ -103,8 +103,13 @@ export interface CurrentConditions {
  * Generate scenarios based on current NWS guidance
  * Updated for Jan 24, 2026 forecast
  *
- * Calibrated to approximately match market consensus while using NWS guidance
- * Market implies: P(>10") ≈ 63%, P(>12") ≈ 42%
+ * OPTIMIZED FOR CENTRAL PARK (coastal NYC location)
+ *
+ * Key considerations:
+ * - Central Park is coastal, so mixing risk is higher
+ * - NWS says "around 10 inches near the coast" - this is our anchor
+ * - High-end scenarios are less likely for coastal areas
+ * - Upside capped compared to inland locations
  */
 export function generateImprovedScenarios(conditions: CurrentConditions): ImprovedScenario[] {
   const { nwsLow, nwsHigh, nwsMedian, mixingRisk, observedSnowfall } = conditions;
@@ -114,21 +119,24 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const remainingLow = Math.max(0, nwsLow - observedSnowfall);
   const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
 
-  // Calibrated scenario probabilities
-  // These are tuned to produce a distribution matching market consensus
+  // CENTRAL PARK CALIBRATED scenario probabilities
+  // NWS says "around 10 inches" for coastal - this is our anchor
+  // Mixing risk limits upside for coastal locations
 
   // Scenario 1: NWS Forecast Verifies (most likely)
-  // Centered at NWS median with moderate spread
+  // Centered at NWS median (~10") for coastal
   const baseCaseProb = 0.50;
 
   // Scenario 2: High-End (all snow, good banding)
-  // Higher probability than before to match market's bullishness on high end
-  const highEndProb = mixingRisk === "high" ? 0.15 :
-                      mixingRisk === "medium" ? 0.20 : 0.25;
+  // REDUCED for Central Park - coastal areas have higher mixing risk
+  // Upside is capped vs inland locations
+  const highEndProb = mixingRisk === "high" ? 0.10 :
+                      mixingRisk === "medium" ? 0.15 : 0.20;
 
   // Scenario 3: Mixing scenario (reduces totals)
-  const mixingProb = mixingRisk === "high" ? 0.20 :
-                     mixingRisk === "medium" ? 0.18 : 0.12;
+  // INCREASED for Central Park - coastal areas more prone to mixing
+  const mixingProb = mixingRisk === "high" ? 0.25 :
+                     mixingRisk === "medium" ? 0.22 : 0.15;
 
   // Scenario 4: Bust/Underperformance
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
@@ -138,27 +146,29 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
       mean: remainingMedian + observedSnowfall,
-      stdDev: (remainingHigh - remainingLow) / 3, // Wider spread for more tail probability
+      stdDev: (remainingHigh - remainingLow) / 3,
       description: `NWS forecast: ${nwsLow}-${nwsHigh}" verifies`,
     },
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      mean: remainingHigh + 3 + observedSnowfall, // Upper end + buffer
-      stdDev: 2.5, // Wider spread
+      // For Central Park: only +2" above NWS high (not +3" like inland)
+      mean: remainingHigh + 2 + observedSnowfall,
+      stdDev: 2.0, // Tighter spread for coastal
       description: "Optimal track, no mixing, high ratios",
     },
     {
       name: "Extended Mixing",
       probability: mixingProb,
-      mean: Math.max(remainingLow - 1, 4) + observedSnowfall,
+      // Mixing more likely for Central Park (coastal)
+      mean: Math.max(remainingLow - 1, 5) + observedSnowfall,
       stdDev: 1.5,
       description: "More mixing than forecast reduces totals",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      mean: Math.max(remainingLow - 3, 2) + observedSnowfall,
+      mean: Math.max(remainingLow - 3, 3) + observedSnowfall,
       stdDev: 1.5,
       description: "Track miss, dry slot, or bust",
     },
@@ -256,28 +266,41 @@ export function calculatePolymarketProbabilities(
 
 /**
  * Get current conditions based on latest NWS guidance (Jan 24, 2026)
+ *
+ * CRITICAL: Optimized for NY CITY CENTRAL PARK specifically
+ * Resolution source: weather.gov/wrh/climate?wfo=okx (CLINYC station)
+ *
+ * Key NWS guidance:
+ * - "Around 10 inches near the coast" (Central Park IS coastal NYC)
+ * - "Around 16 inches well inland" (NOT applicable to Central Park)
+ * - Sunday: 7-11 inches snow/sleet
+ * - Sunday Night: 1-3 inches (mixing possible for coastal areas)
+ * - Monday: <0.5 inch
+ *
+ * Central Park is a COASTAL location - mixing risk caps upside potential.
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // Updated based on Jan 24 NWS AFD
-    // "around 10 inches near the coast" for NYC
-    // But also noting "7-11 inches Sunday" + "1-3 inches Sunday night"
-    // Total range is more like 8-14" with median ~10-11"
+    // Central Park specific forecast (coastal NYC)
+    // NWS explicitly says "around 10 inches near the coast"
     nwsLow: 8,
-    nwsHigh: 14, // Keeping higher end possible
-    nwsMedian: 11, // Slightly above 10 to account for additional Sunday night snow
+    nwsHigh: 12, // Central Park is coastal - cap at 12" (NOT 14" inland value)
+    nwsMedian: 10, // NWS says "around 10 inches" for coastal
 
-    // Mixing risk is medium - NWS mentions potential late Sunday
+    // Mixing risk is MEDIUM-HIGH for Central Park (coastal)
+    // NWS mentions potential mixing late Sunday for coastal areas
+    // This is the key factor limiting upside for Central Park
     mixingRisk: "medium",
 
     // Track uncertainty is medium - models in decent agreement
     trackUncertainty: "medium",
 
-    // No observation yet (update this as storm progresses)
-    observedSnowfall: 0,
+    // OBSERVED: 0.3" already recorded at Central Park on Jan 24
+    // Source: weather.gov/wrh/climate?wfo=okx
+    observedSnowfall: 0.3,
 
-    // Model spread ~4-6 inches
-    modelSpread: 5,
+    // Model spread ~3-4 inches for Central Park
+    modelSpread: 4,
   };
 }
 

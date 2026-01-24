@@ -102,16 +102,42 @@ export function runForecastModelWithData(data: UnifiedForecastData): ForecastOut
 
 /**
  * Run improved model with NWS data
+ *
+ * CRITICAL: This applies Central Park-specific corrections to regional NWS data.
+ * Resolution source: weather.gov/wrh/climate?wfo=okx (NY CITY CENTRAL PARK)
+ *
+ * Central Park is a COASTAL location:
+ * - NWS says "around 10 inches near the coast" vs "16 inches well inland"
+ * - We must apply a coastal correction factor
+ * - Higher mixing risk for coastal areas
  */
 function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOutput {
-  // Convert NWS data to conditions for improved model
+  // CENTRAL PARK COASTAL CORRECTION
+  // The fetched NWS data is often regional (includes inland areas)
+  // Central Park is coastal, so we need to:
+  // 1. Lower the high end by ~2" (coastal mixing caps upside)
+  // 2. Anchor median closer to "around 10 inches" per NWS coastal guidance
+  // 3. Account for any observed snowfall
+
+  const rawLow = data.combined.snowfallRange.low;
+  const rawHigh = data.combined.snowfallRange.high;
+
+  // Apply coastal correction - Central Park won't hit inland totals
+  // NWS explicitly says "around 10 inches near the coast" for NYC
+  const coastalCorrectionFactor = 0.85; // 15% reduction for coastal vs inland
+  const adjustedHigh = Math.min(rawHigh, rawLow + (rawHigh - rawLow) * coastalCorrectionFactor);
+
+  // Central Park observed snowfall as of Jan 24 (from climate report)
+  const observedSnowfall = 0.3;
+
   const conditions = {
-    nwsLow: data.combined.snowfallRange.low,
-    nwsHigh: data.combined.snowfallRange.high,
-    nwsMedian: (data.combined.snowfallRange.low + data.combined.snowfallRange.high) / 2,
-    mixingRisk: data.combined.mixingExpected ? "medium" as const : "low" as const,
+    nwsLow: rawLow,
+    nwsHigh: adjustedHigh,
+    nwsMedian: Math.round(((rawLow + adjustedHigh) / 2) * 10) / 10,
+    // Central Park has HIGHER mixing risk (coastal location)
+    mixingRisk: "medium" as const, // Always medium+ for coastal
     trackUncertainty: "medium" as const,
-    observedSnowfall: 0,
+    observedSnowfall: observedSnowfall,
     modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
                  Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam),
   };
@@ -167,9 +193,10 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
       nam: { value: data.modelEstimates.nam, trend: "steady" },
     },
     keyUncertainties: [
-      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC area`,
-      `Mixing risk: ${conditions.mixingRisk} - ${data.combined.mixingTiming || "timing uncertain"}`,
-      `Model uses Gamma distribution for proper right-skew`,
+      `Central Park forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" (coastal-adjusted)`,
+      `NWS says "around 10 inches near the coast" for NYC`,
+      `Mixing risk: ${conditions.mixingRisk} (higher for coastal Central Park)`,
+      `Observed snowfall: ${conditions.observedSnowfall}" already recorded`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",
