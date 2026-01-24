@@ -4,10 +4,19 @@
 Building a probability model + dashboard to predict Central Park snowfall for Jan 24-26, 2026.
 Dashboard should be dark-themed, modern, and deployed to Vercel.
 
+## IMPORTANT: Change Workflow
+**Every time changes are made to this project:**
+1. Log all changes to the Changelog section below
+2. Commit changes with descriptive message
+3. Push to GitHub: `git push`
+4. Deploy to Vercel: `npx vercel --prod --yes`
+5. Verify deployment at https://nyc-snow-forecast.vercel.app
+
 ## Quick Commands
 - `npm run dev` - Start local server at http://localhost:3000
-- `npx vercel` - Deploy to Vercel
+- `npx vercel --prod --yes` - Deploy to Vercel production
 - `npm run build` - Build for production
+- `git push` - Push to GitHub
 
 ## Tech Stack
 - Next.js 14+ (App Router)
@@ -51,3 +60,42 @@ Strike probabilities needed for: 2", 4", 6", 8", 10", 12", 15", 18", 20", 24"
 
 ## Vercel Deployment
 Production URL: https://nyc-snow-forecast.vercel.app
+
+## Resolution Sources
+- **Kalshi**: NWS Daily Climate Report at weather.gov/wrh/climate?wfo=okx (CLINYC station)
+- **Polymarket**: Same source - "New Snow (IN)" figures for Jan 24-26, 2026
+- **Location**: NY CITY CENTRAL PARK, NY (coastal location)
+
+## Model Architecture
+- Uses Gamma distribution (right-skewed, non-negative)
+- 4 scenarios: NWS Verifies (50%), High-End (15%), Extended Mixing (22%), Underperformance (13%)
+- Applies coastal correction factor for Central Park (not inland)
+- Accounts for observed snowfall
+
+---
+
+## Changelog
+
+### 2026-01-24 (Evening)
+- **Central Park Optimization**: Updated model to be coastal-specific
+  - Applied coastal correction factor (85%) to NWS regional data
+  - Reduced high-end scenario probability (20% → 15%)
+  - Increased mixing scenario probability (18% → 22%)
+  - Added observed snowfall tracking (0.3" recorded)
+  - Model now produces: P(>10")=59%, P(>12")=35%
+- Files changed: `lib/model/improved-model.ts`, `lib/model/index.ts`, `data/forecast.json`
+- Deployed to Vercel
+
+### 2026-01-24 (Afternoon)
+- **Improved Model**: Switched from Gaussian to Gamma distribution
+  - Created `lib/model/improved-model.ts`
+  - Added separate Kalshi and Polymarket probability calculations
+  - Added `MODEL_CRITIQUE.md` with critical analysis
+- **Kalshi API Fix**: Fixed authentication signature (full path required)
+- **Position Tracking**: Added P&L display to dashboard
+- **GitHub**: Pushed all code to https://github.com/goldytalks/nyc-snow-forecast
+
+### 2026-01-23
+- Initial dashboard setup
+- Basic probability model with 4 scenarios
+- Deployed to Vercel
