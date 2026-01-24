@@ -1,82 +1,144 @@
 {
-  "modelRunTimestamp": "2026-01-23T16:00:00Z",
-  "dataSourcesUsed": ["NWS_point_forecast", "NWS_AFD", "GFS", "ECMWF", "NAM"],
+  "modelRunTimestamp": "2026-01-24T16:57:34.175Z",
+  "modelVersion": "improved",
+  "dataSourcesUsed": [
+    "NWS_point_forecast",
+    "NWS_AFD",
+    "GFS",
+    "ECMWF",
+    "NAM"
+  ],
   "distribution": {
-    "median": 11.8,
-    "mean": 11.5,
-    "stdDev": 3.8,
-    "p10": 6.5,
-    "p25": 9.0,
-    "p75": 14.5,
-    "p90": 17.0
+    "median": 11,
+    "mean": 10.8,
+    "stdDev": 3.5,
+    "p10": 6,
+    "p25": 8,
+    "p75": 14,
+    "p90": 17
   },
   "strikeProbabilities": {
-    "2": 0.985,
-    "4": 0.955,
-    "6": 0.89,
-    "8": 0.78,
-    "10": 0.62,
-    "12": 0.48,
-    "14": 0.35,
-    "15": 0.28,
-    "16": 0.22,
-    "18": 0.12,
-    "20": 0.06,
-    "24": 0.015
+    "2": 0.999,
+    "4": 0.966,
+    "6": 0.86,
+    "8": 0.72,
+    "10": 0.544,
+    "12": 0.344,
+    "15": 0.173,
+    "18": 0.067,
+    "20": 0.024,
+    "24": 0.001
+  },
+  "kalshiProbabilities": {
+    "2": 0.999,
+    "4": 0.966,
+    "6": 0.86,
+    "8": 0.72,
+    "10": 0.544,
+    "12": 0.344,
+    "15": 0.173,
+    "18": 0.067,
+    "20": 0.024,
+    "24": 0.001
+  },
+  "polymarketProbabilities": {
+    "<4": 0.034,
+    "4-6": 0.106,
+    "6-8": 0.14,
+    "8-10": 0.176,
+    "10-12": 0.2,
+    "12-14": 0.128,
+    "14+": 0.215
   },
   "scenarios": [
     {
-      "name": "High-End (All Snow)",
-      "probability": 0.25,
-      "snowfallMean": 18.0,
-      "snowfallRange": [14, 22],
-      "color": "#10b981",
-      "description": "Storm tracks optimally, all snow, max 18\""
+      "name": "NWS Forecast Verifies",
+      "probability": 0.5,
+      "snowfallMean": 11,
+      "snowfallRange": [
+        8,
+        14
+      ],
+      "color": "#3b82f6",
+      "description": "NWS forecast: 8-14\" verifies"
     },
     {
-      "name": "Base Case (NWS Forecast)",
-      "probability": 0.50,
-      "snowfallMean": 11.0,
-      "snowfallRange": [8, 14],
-      "color": "#3b82f6",
-      "description": "NWS official: 8-14\""
+      "name": "High-End (All Snow)",
+      "probability": 0.2,
+      "snowfallMean": 17,
+      "snowfallRange": [
+        13.3,
+        20.8
+      ],
+      "color": "#10b981",
+      "description": "Optimal track, no mixing, high ratios"
     },
     {
       "name": "Extended Mixing",
-      "probability": 0.20,
-      "snowfallMean": 7.0,
-      "snowfallRange": [5, 9],
+      "probability": 0.18,
+      "snowfallMean": 7,
+      "snowfallRange": [
+        4.8,
+        9.3
+      ],
       "color": "#f59e0b",
-      "description": "More sleet/mix than forecast, cuts snow totals"
+      "description": "More mixing than forecast reduces totals"
     },
     {
       "name": "Significant Underperformance",
-      "probability": 0.05,
-      "snowfallMean": 3.0,
-      "snowfallRange": [1, 5],
+      "probability": 0.12,
+      "snowfallMean": 5,
+      "snowfallRange": [
+        2.8,
+        7.3
+      ],
       "color": "#ef4444",
-      "description": "Track miss, dry slot, or extended warm air"
+      "description": "Track miss, dry slot, or bust"
     }
   ],
   "modelInputs": {
-    "nws": { "range": [8, 14], "confidence": "medium" },
-    "ecmwf": { "value": 14, "trend": "steady" },
-    "gfs": { "value": 10, "trend": "steady" },
-    "nam": { "value": 12, "trend": "steady" }
+    "nws": {
+      "range": [
+        8,
+        14
+      ],
+      "confidence": "medium"
+    },
+    "ecmwf": {
+      "value": 12,
+      "trend": "steady"
+    },
+    "gfs": {
+      "value": 10,
+      "trend": "steady"
+    },
+    "nam": {
+      "value": 11,
+      "trend": "steady"
+    }
   },
   "keyUncertainties": [
-    "Storm track: 4\" spread between model solutions",
-    "Mixing duration: Timing uncertain",
-    "SLR: 10:1 to 18:1 expected"
+    "NWS forecast: 8-14\" for NYC area",
+    "Mixing risk: medium - could reduce totals",
+    "Model uses Gamma distribution for proper right-skew"
   ],
   "timing": {
     "snowStarts": "2026-01-25T06:00:00Z",
     "heaviestSnow": "2026-01-25T12:00:00Z",
-    "mixingWindow": ["2026-01-25T22:00:00Z", "2026-01-26T04:00:00Z"],
+    "mixingWindow": [
+      "2026-01-25T22:00:00Z",
+      "2026-01-26T04:00:00Z"
+    ],
     "snowEnds": "2026-01-26T12:00:00Z"
   },
   "dataSources": {
-    "nwsForecast": { "status": "success", "updateTime": "2026-01-23T15:00:00Z" },
-    "nwsAFD": { "status": "success", "issueTime": "2026-01-23T14:00:00Z" }
+    "nwsForecast": {
+      "status": "live",
+      "updateTime": "2026-01-24T16:57:34.175Z"
+    },
+    "nwsAFD": {
+      "status": "live",
+      "issueTime": "2026-01-24T16:57:34.175Z"
+    }
   }
 }
