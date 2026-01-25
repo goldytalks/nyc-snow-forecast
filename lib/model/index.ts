@@ -115,8 +115,12 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   // The API returns period-by-period forecasts which don't represent storm totals
   // NWS Winter Storm Warning says 8-12" for NYC metro (confirmed by AFD)
 
-  // OBSERVED: 7.2" official Central Park measurement as of 2 PM ET
-  const observedSnowfall = 7.2;
+  // OBSERVED: Central Park official + estimated additional
+  // 7.2" official at 1:00 PM ET (NWS PNS)
+  // +1.3" estimated 1-3 PM before sleet transition
+  // = ~8.5" estimated as of 3:45 PM ET
+  // UPDATE THIS AS NEW MEASUREMENTS COME IN
+  const observedSnowfall = 8.5;
 
   // NWS STORM TOTAL forecast (from Winter Storm Warning, not period sums)
   // Source: NWS AFD 3:42 PM ET - "9-12 inches are forecast for the NYC metro area"
@@ -203,7 +207,7 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     },
     keyUncertainties: [
       `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for Central Park`,
-      `Observed: ${conditions.observedSnowfall}" as of 2 PM ET`,
+      `Observed: ~${conditions.observedSnowfall}" estimated (7.2" official @ 1PM + additional)`,
       `ACTIVE SLEET MIXING - warm nose at 750mb limiting totals`,
       `Snow returns after 10 PM but at lighter rates`,
     ],

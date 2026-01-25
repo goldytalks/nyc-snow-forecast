@@ -295,9 +295,11 @@ export function getCurrentConditions(): CurrentConditions {
     // Track uncertainty is low - storm tracking as expected
     trackUncertainty: "low",
 
-    // OBSERVED: 7.2" official Central Park measurement as of 2 PM ET
-    // Source: NWS spotter reports, ABC7, NBC, CBS confirmed
-    observedSnowfall: 7.2,
+    // OBSERVED: Central Park - UPDATE AS NEW DATA COMES IN
+    // 7.2" official at 1:00 PM ET (NWS PNS)
+    // +1.3" estimated before sleet transition
+    // = ~8.5" as of 3:45 PM ET
+    observedSnowfall: 8.5,
 
     // Model spread: GFS 9.4" vs ECMWF 13.9" = 4.5" spread
     modelSpread: 4.5,
