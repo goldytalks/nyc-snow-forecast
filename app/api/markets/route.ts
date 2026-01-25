@@ -248,16 +248,27 @@ export async function GET() {
         // Calculate unrealized P&L for each position based on current market prices
         const positionsWithPnL = kalshiDetails.positions.map((pos) => {
           const market = formattedKalshiMarkets.find((m) => m.ticker === pos.ticker);
-          const currentPrice = market?.yes?.mid || 0;
           const entryPrice = pos.average_price;
           const positionSize = Math.abs(pos.position);
-          const isLong = pos.position > 0;
+          // position > 0 means LONG YES shares
+          // position < 0 means LONG NO shares (short YES)
+          const isLongYes = pos.position > 0;
+          const isLongNo = pos.position < 0;
 
-          // P&L = (current - entry) * size for long, (entry - current) * size for short
-          const unrealizedPnl = isLong
-            ? (currentPrice - entryPrice) * positionSize
-            : (entryPrice - currentPrice) * positionSize;
+          // Use the correct price for the position side
+          // For YES positions, use YES mid price
+          // For NO positions, use NO mid price
+          const currentPrice = isLongYes
+            ? (market?.yes?.mid || 0)
+            : (market?.no?.mid || 0);
 
+          // P&L calculation:
+          // For YES positions: profit when YES price goes up
+          // For NO positions: profit when NO price goes up
+          // In both cases: P&L = (current - entry) * size
+          const unrealizedPnl = (currentPrice - entryPrice) * positionSize;
+
+          // Current value is based on the position's side
           const currentValue = currentPrice * positionSize;
 
           return {
