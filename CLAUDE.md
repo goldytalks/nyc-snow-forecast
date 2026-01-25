@@ -93,6 +93,16 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-25 (Event Day - Update 1)
+- **Real-Time Event Tracking**: Model is now time-aware and tracks storm progress
+  - Added `EventPhase` tracking: pre-event, early-event, mid-event, late-event, post-event
+  - Added `getEventStatus()` function with hours remaining and percent complete
+  - Observed snowfall now estimated dynamically based on event phase
+  - Uncertainty parameters adjust as storm verifies
+  - Model output includes `eventStatus` with phase description
+- Files changed: `lib/model/improved-model.ts`, `lib/model/index.ts`
+- Critical: Model now knows it's Jan 25, 2026 (event day) and adjusts accordingly
+
 ### 2026-01-24 (Evening - Update 4)
 - **Fixed Chatbot**: Chat feature now works without requiring Anthropic API key
   - Added local response generation as fallback when API key is unavailable

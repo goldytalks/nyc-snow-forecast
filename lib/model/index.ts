@@ -15,7 +15,12 @@ import {
   calculatePolymarketProbabilities,
   generateImprovedScenarios,
   getCurrentConditions,
+  getEventStatus,
+  getEventPhase,
+  getStormTiming,
   type ImprovedScenario,
+  type EventPhase,
+  type EventTiming,
 } from "./improved-model";
 import type { UnifiedForecastData } from "../data/fetchers";
 
@@ -66,6 +71,14 @@ export interface ForecastOutput {
   dataSources: {
     nwsForecast: { status: string; updateTime: string | null };
     nwsAFD: { status: string; issueTime: string | null };
+  };
+  // Event tracking - where are we in the storm?
+  eventStatus?: {
+    phase: EventPhase;
+    phaseDescription: string;
+    hoursRemaining: number;
+    percentComplete: number;
+    observedSnowfall: number;
   };
 }
 
@@ -127,16 +140,20 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   const coastalCorrectionFactor = 0.85; // 15% reduction for coastal vs inland
   const adjustedHigh = Math.min(rawHigh, rawLow + (rawHigh - rawLow) * coastalCorrectionFactor);
 
-  // Central Park observed snowfall as of Jan 24 (from climate report)
-  const observedSnowfall = 0.3;
+  // Get event status for dynamic observed snowfall estimation
+  const eventStatus = getEventStatus();
+
+  // Get current conditions which now estimates observed snowfall based on event phase
+  const currentConditions = getCurrentConditions();
+  const observedSnowfall = currentConditions.observedSnowfall;
 
   const conditions = {
     nwsLow: rawLow,
     nwsHigh: adjustedHigh,
     nwsMedian: Math.round(((rawLow + adjustedHigh) / 2) * 10) / 10,
     // Central Park has HIGHER mixing risk (coastal location)
-    mixingRisk: "medium" as const, // Always medium+ for coastal
-    trackUncertainty: "medium" as const,
+    mixingRisk: currentConditions.mixingRisk,
+    trackUncertainty: currentConditions.trackUncertainty,
     observedSnowfall: observedSnowfall,
     modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
                  Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam),
@@ -213,6 +230,13 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
         status: data.sources.nwsAFD.status,
         issueTime: data.sources.nwsAFD.issueTime,
       },
+    },
+    eventStatus: {
+      phase: eventStatus.phase,
+      phaseDescription: eventStatus.phaseDescription,
+      hoursRemaining: eventStatus.hoursRemaining,
+      percentComplete: eventStatus.percentComplete,
+      observedSnowfall: observedSnowfall,
     },
   };
 }
@@ -325,6 +349,7 @@ export function runForecastModel(): ForecastOutput {
 export function runForecastModelImproved(): ForecastOutput {
   const conditions = getCurrentConditions();
   const improvedScenarios = generateImprovedScenarios(conditions);
+  const eventStatus = getEventStatus();
 
   const kalshiProbs = calculateKalshiProbabilities(improvedScenarios);
   const polymarketProbs = calculatePolymarketProbabilities(improvedScenarios);
@@ -392,6 +417,13 @@ export function runForecastModelImproved(): ForecastOutput {
     dataSources: {
       nwsForecast: { status: "live", updateTime: now },
       nwsAFD: { status: "live", issueTime: now },
+    },
+    eventStatus: {
+      phase: eventStatus.phase,
+      phaseDescription: eventStatus.phaseDescription,
+      hoursRemaining: eventStatus.hoursRemaining,
+      percentComplete: eventStatus.percentComplete,
+      observedSnowfall: conditions.observedSnowfall,
     },
   };
 }
