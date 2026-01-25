@@ -95,12 +95,13 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ### 2026-01-24 (Evening - Update 3)
 - **Added Chatbot**: AI-powered chat assistant for forecast questions
-  - New `/api/chat` endpoint using Claude API with forecast context
+  - New `/api/chat` endpoint using **Groq API** (free tier, Llama 3.3 70B model)
   - New `ForecastChat.tsx` component with floating chat UI
   - Suggested questions for common queries
   - Chat has full access to current model data, probabilities, and scenarios
-  - Added `@anthropic-ai/sdk` dependency
+  - Added `groq-sdk` dependency (removed `@anthropic-ai/sdk`)
   - Created `components/ui/input.tsx` and `components/ui/button.tsx`
+  - **Requires `GROQ_API_KEY` in Vercel env vars** (get free key at console.groq.com)
 - Files changed: `app/api/chat/route.ts`, `components/ForecastChat.tsx`, `app/page.tsx`
 - Deployed to Vercel
 

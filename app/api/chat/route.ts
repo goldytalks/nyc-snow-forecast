@@ -1,15 +1,28 @@
 /**
  * Chat API - Answer questions about the snow forecast model
- * Uses Claude API with forecast context
+ * Uses Groq API (free tier) with Llama model
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 import { getCurrentForecast } from "@/lib/realtime/polling";
 
 export const dynamic = "force-dynamic";
 
-const anthropic = new Anthropic();
+// Lazy initialization to avoid build-time errors
+let groqClient: Groq | null = null;
+
+function getGroqClient(): Groq | null {
+  if (!process.env.GROQ_API_KEY) {
+    return null;
+  }
+  if (!groqClient) {
+    groqClient = new Groq({
+      apiKey: process.env.GROQ_API_KEY,
+    });
+  }
+  return groqClient;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +32,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Message is required" },
         { status: 400 }
+      );
+    }
+
+    // Get Groq client (lazy initialization)
+    const groq = getGroqClient();
+    if (!groq) {
+      return NextResponse.json(
+        { error: "Chat service not configured. GROQ_API_KEY is missing." },
+        { status: 500 }
       );
     }
 
@@ -35,13 +57,13 @@ Distribution:
 - P10 (low end): ${forecast.distribution.p10}"
 - P90 (high end): ${forecast.distribution.p90}"
 
-Strike Probabilities (Kalshi):
+Strike Probabilities (Kalshi - probability of exceeding threshold):
 ${Object.entries(forecast.strikeProbabilities)
   .map(([k, v]) => `- P(>${k}"): ${(v * 100).toFixed(1)}%`)
   .join("\n")}
 
 ${forecast.polymarketProbabilities ? `
-Bucket Probabilities (Polymarket):
+Bucket Probabilities (Polymarket - probability of landing in range):
 ${Object.entries(forecast.polymarketProbabilities)
   .map(([k, v]) => `- ${k}": ${((v as number) * 100).toFixed(1)}%`)
   .join("\n")}
@@ -51,7 +73,7 @@ Scenarios:
 ${forecast.scenarios
   .map(
     (s) =>
-      `- ${s.name} (${(s.probability * 100).toFixed(0)}%): ${s.snowfallMean}" mean, range ${s.snowfallRange[0]}-${s.snowfallRange[1]}"`
+      `- ${s.name} (${(s.probability * 100).toFixed(0)}% chance): ${s.snowfallMean}" mean, range ${s.snowfallRange[0]}-${s.snowfallRange[1]}" - ${s.description}`
   )
   .join("\n")}
 
@@ -69,10 +91,6 @@ Timing:
 - Heaviest snow: ${forecast.timing.heaviestSnow}
 - Mixing window: ${forecast.timing.mixingWindow[0]} to ${forecast.timing.mixingWindow[1]}
 - Snow ends: ${forecast.timing.snowEnds}
-
-Data Sources:
-- NWS Forecast: ${forecast.dataSources.nwsForecast.status} (${forecast.dataSources.nwsForecast.updateTime})
-- NWS AFD: ${forecast.dataSources.nwsAFD.status} (${forecast.dataSources.nwsAFD.issueTime})
 `;
     } catch (error) {
       console.error("Failed to fetch forecast for context:", error);
@@ -95,28 +113,28 @@ Key facts about this model:
 - Model uses Gamma distribution (right-skewed, non-negative)
 - 4 scenarios: NWS Verifies (50%), High-End (15%), Extended Mixing (22%), Underperformance (13%)
 
-Be concise but informative. Use the forecast data provided to give specific numbers when answering questions.
+Be concise but informative. Use the forecast data provided to give specific numbers when answering questions. Keep responses under 200 words.
 
 ${forecastContext}`;
 
     // Build message history for multi-turn conversation
-    const messages = [
+    const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+      { role: "system", content: systemPrompt },
       ...history.map((h: { role: string; content: string }) => ({
         role: h.role as "user" | "assistant",
         content: h.content,
       })),
-      { role: "user" as const, content: message },
+      { role: "user", content: message },
     ];
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: systemPrompt,
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       messages,
+      max_tokens: 1024,
+      temperature: 0.7,
     });
 
-    const assistantMessage =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    const assistantMessage = response.choices[0]?.message?.content || "Sorry, I couldn't generate a response.";
 
     return NextResponse.json({
       message: assistantMessage,
@@ -125,7 +143,7 @@ ${forecastContext}`;
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(
-      { error: "Failed to process chat message" },
+      { error: "Failed to process chat message. Please try again." },
       { status: 500 }
     );
   }
