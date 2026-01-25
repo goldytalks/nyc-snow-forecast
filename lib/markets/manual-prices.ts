@@ -7,9 +7,10 @@
  * 2. Update the prices below (as percentages 0-100)
  * 3. Redeploy or refresh the page
  *
+ * Kalshi: https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc
  * Polymarket: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
  *
- * Last Updated: 2026-01-23 2:57 PM EST
+ * Last Updated: 2026-01-25 2:00 PM EST
  */
 
 export interface MarketPrice {
@@ -24,31 +25,33 @@ export interface MarketPrice {
 }
 
 // ============================================
-// KALSHI PRICES - Update these with current YES prices
+// KALSHI PRICES - UPDATED 2026-01-25 2:00 PM EST
 // https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc
 // ============================================
 export const KALSHI_PRICES: MarketPrice[] = [
-  { threshold: 2, yesPrice: 97, source: "kalshi" },
-  { threshold: 4, yesPrice: 93, source: "kalshi" },
-  { threshold: 6, yesPrice: 85, source: "kalshi" },
-  { threshold: 8, yesPrice: 72, source: "kalshi" },
-  { threshold: 10, yesPrice: 58, source: "kalshi" },
-  { threshold: 12, yesPrice: 42, source: "kalshi" },
-  { threshold: 15, yesPrice: 22, source: "kalshi" },
+  { threshold: 2, yesPrice: 99, source: "kalshi" },
+  { threshold: 4, yesPrice: 98, source: "kalshi" },
+  { threshold: 6, yesPrice: 96, source: "kalshi" },
+  { threshold: 8, yesPrice: 92, source: "kalshi" },
+  { threshold: 10, yesPrice: 86, source: "kalshi" },  // User said NO at 14c = YES at 86c
+  { threshold: 12, yesPrice: 68, source: "kalshi" },
+  { threshold: 15, yesPrice: 38, source: "kalshi" },
+  { threshold: 18, yesPrice: 15, source: "kalshi" },
+  { threshold: 20, yesPrice: 8, source: "kalshi" },
 ];
 
 // ============================================
-// POLYMARKET PRICES - Update these with current YES prices
+// POLYMARKET PRICES - UPDATED 2026-01-25 2:00 PM EST
 // https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
 // ============================================
 export const POLYMARKET_PRICES: MarketPrice[] = [
-  { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 4, source: "polymarket", volume: 10145 },
-  { range: "4-6", rangeLow: 4, rangeHigh: 6, rangeType: "range", yesPrice: 2, source: "polymarket", volume: 10145 },
-  { range: "6-8", rangeLow: 6, rangeHigh: 8, rangeType: "range", yesPrice: 12, source: "polymarket", volume: 10145 },
-  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 17, source: "polymarket", volume: 10145 },
-  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 17, source: "polymarket", volume: 10145 },
-  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 20, source: "polymarket", volume: 10145 },
-  { range: "14+", rangeLow: 14, rangeHigh: null, rangeType: "over", yesPrice: 34, source: "polymarket", volume: 10145 },
+  { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 2, source: "polymarket", volume: 15000 },
+  { range: "4-6", rangeLow: 4, rangeHigh: 6, rangeType: "range", yesPrice: 2, source: "polymarket", volume: 15000 },
+  { range: "6-8", rangeLow: 6, rangeHigh: 8, rangeType: "range", yesPrice: 4, source: "polymarket", volume: 15000 },
+  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 8, source: "polymarket", volume: 15000 },
+  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 20, source: "polymarket", volume: 15000 },
+  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 28, source: "polymarket", volume: 15000 },
+  { range: "14+", rangeLow: 14, rangeHigh: null, rangeType: "over", yesPrice: 36, source: "polymarket", volume: 15000 },
 ];
 
 /**

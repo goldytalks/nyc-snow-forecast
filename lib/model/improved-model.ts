@@ -328,5 +328,68 @@ export function runImprovedModel() {
   };
 }
 
+/**
+ * Calculate percentile from mixture of Gamma distributions using binary search
+ */
+export function calculatePercentile(
+  percentile: number,
+  scenarios: ImprovedScenario[]
+): number {
+  // Binary search for the value where CDF = percentile
+  let low = 0;
+  let high = 40; // Max reasonable snowfall
+  const tolerance = 0.01;
+
+  while (high - low > tolerance) {
+    const mid = (low + high) / 2;
+    // CDF at mid = 1 - P(X > mid)
+    const cdf = 1 - calculateExceedanceProbabilityImproved(mid, scenarios);
+
+    if (cdf < percentile) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return Math.round((low + high) / 2 * 10) / 10;
+}
+
+/**
+ * Calculate standard deviation of mixture distribution
+ */
+export function calculateMixtureStdDev(scenarios: ImprovedScenario[]): number {
+  const mean = scenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
+
+  // Variance of mixture = E[X^2] - E[X]^2
+  // E[X^2] = sum of (p_i * (var_i + mean_i^2))
+  let eX2 = 0;
+  for (const s of scenarios) {
+    const variance = s.stdDev * s.stdDev;
+    eX2 += s.probability * (variance + s.mean * s.mean);
+  }
+
+  const mixtureVariance = eX2 - mean * mean;
+  return Math.sqrt(mixtureVariance);
+}
+
+/**
+ * Get full distribution statistics from scenarios
+ */
+export function getDistributionStats(scenarios: ImprovedScenario[]) {
+  const mean = scenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
+  const stdDev = calculateMixtureStdDev(scenarios);
+
+  return {
+    mean: Math.round(mean * 10) / 10,
+    stdDev: Math.round(stdDev * 10) / 10,
+    p10: calculatePercentile(0.10, scenarios),
+    p25: calculatePercentile(0.25, scenarios),
+    median: calculatePercentile(0.50, scenarios),
+    p75: calculatePercentile(0.75, scenarios),
+    p90: calculatePercentile(0.90, scenarios),
+  };
+}
+
 // Export for testing
 export { gammaCDF, getGammaParams };

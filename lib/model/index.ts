@@ -15,6 +15,8 @@ import {
   calculatePolymarketProbabilities,
   generateImprovedScenarios,
   getCurrentConditions,
+  getDistributionStats,
+  calculateMixtureStdDev,
   type ImprovedScenario,
 } from "./improved-model";
 import type { UnifiedForecastData } from "../data/fetchers";
@@ -147,7 +149,8 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   const kalshiProbs = calculateKalshiProbabilities(improvedScenarios);
   const polymarketProbs = calculatePolymarketProbabilities(improvedScenarios);
 
-  const mean = improvedScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
+  // Calculate proper distribution statistics from the mixture
+  const distStats = getDistributionStats(improvedScenarios);
   const now = new Date().toISOString();
 
   const scenarioColors: Record<string, string> = {
@@ -162,13 +165,13 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     modelVersion: "improved",
     dataSourcesUsed: ["NWS_point_forecast", "NWS_AFD", "GFS", "ECMWF", "NAM"],
     distribution: {
-      median: Math.round(conditions.nwsMedian * 10) / 10,
-      mean: Math.round(mean * 10) / 10,
-      stdDev: 3.5,
-      p10: Math.round((conditions.nwsLow - 2) * 10) / 10,
-      p25: Math.round(conditions.nwsLow * 10) / 10,
-      p75: Math.round(conditions.nwsHigh * 10) / 10,
-      p90: Math.round((conditions.nwsHigh + 3) * 10) / 10,
+      median: distStats.median,
+      mean: distStats.mean,
+      stdDev: distStats.stdDev,
+      p10: distStats.p10,
+      p25: distStats.p25,
+      p75: distStats.p75,
+      p90: distStats.p90,
     },
     strikeProbabilities: kalshiProbs,
     kalshiProbabilities: kalshiProbs,
@@ -194,10 +197,10 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
       nam: { value: data.modelEstimates.nam, trend: "steady" },
     },
     keyUncertainties: [
-      `Central Park forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" (coastal-adjusted)`,
-      `NWS says "around 10 inches near the coast" for NYC`,
-      `Mixing risk: ${conditions.mixingRisk} (higher for coastal Central Park)`,
-      `Observed snowfall: ${conditions.observedSnowfall}" already recorded`,
+      `NWS Winter Storm Warning: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC metro`,
+      `Model median: ${distStats.median}" (P10-P90: ${distStats.p10}-${distStats.p90}")`,
+      `Mixing risk: ${conditions.mixingRisk} - cold air holding well`,
+      `Storm tracking at/above expectations`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",
@@ -330,8 +333,8 @@ export function runForecastModelImproved(): ForecastOutput {
   const kalshiProbs = calculateKalshiProbabilities(improvedScenarios);
   const polymarketProbs = calculatePolymarketProbabilities(improvedScenarios);
 
-  // Calculate distribution statistics
-  const mean = improvedScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
+  // Calculate proper distribution statistics from the mixture
+  const distStats = getDistributionStats(improvedScenarios);
 
   const now = new Date().toISOString();
 
@@ -348,13 +351,13 @@ export function runForecastModelImproved(): ForecastOutput {
     modelVersion: "improved",
     dataSourcesUsed: ["NWS_point_forecast", "NWS_AFD", "GFS", "ECMWF", "NAM"],
     distribution: {
-      median: conditions.nwsMedian,
-      mean: Math.round(mean * 10) / 10,
-      stdDev: 3.5,
-      p10: Math.round((conditions.nwsLow - 2) * 10) / 10,
-      p25: Math.round((conditions.nwsLow) * 10) / 10,
-      p75: Math.round((conditions.nwsHigh) * 10) / 10,
-      p90: Math.round((conditions.nwsHigh + 3) * 10) / 10,
+      median: distStats.median,
+      mean: distStats.mean,
+      stdDev: distStats.stdDev,
+      p10: distStats.p10,
+      p25: distStats.p25,
+      p75: distStats.p75,
+      p90: distStats.p90,
     },
     strikeProbabilities: kalshiProbs,
     kalshiProbabilities: kalshiProbs,
@@ -380,9 +383,9 @@ export function runForecastModelImproved(): ForecastOutput {
       nam: { value: 11, trend: "steady" },
     },
     keyUncertainties: [
-      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC area`,
-      `Mixing risk: ${conditions.mixingRisk} - could reduce totals`,
-      `Model uses Gamma distribution for proper right-skew`,
+      `NWS Winter Storm Warning: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC metro`,
+      `Model median: ${distStats.median}" (P10-P90: ${distStats.p10}-${distStats.p90}")`,
+      `Mixing risk: ${conditions.mixingRisk} - cold air holding well`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",
