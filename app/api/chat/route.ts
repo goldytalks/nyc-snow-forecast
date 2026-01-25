@@ -1,6 +1,6 @@
 /**
  * Chat API - Answer questions about the snow forecast model
- * Uses Claude API with forecast context
+ * Uses Groq API with Llama (open source) for chat responses
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,15 +8,50 @@ import { getCurrentForecast } from "@/lib/realtime/polling";
 
 export const dynamic = "force-dynamic";
 
-// Create Anthropic client only if API key is available
-function getAnthropicClient() {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+// Groq API endpoint for open source models
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+/**
+ * Call Groq API with Llama model (open source)
+ */
+async function callGroqAPI(
+  systemPrompt: string,
+  messages: Array<{ role: string; content: string }>
+): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return null;
   }
-  // Dynamic import to avoid issues when API key is not set
-  const Anthropic = require("@anthropic-ai/sdk").default;
-  return new Anthropic({ apiKey });
+
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-70b-versatile", // Open source Llama 3.1 70B
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages,
+        ],
+        max_tokens: 1024,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Groq API error:", response.status, await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch (error) {
+    console.error("Groq API call failed:", error);
+    return null;
+  }
 }
 
 // Generate a response based on forecast data without calling the API
@@ -79,24 +114,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if Anthropic API is available
-    const anthropic = getAnthropicClient();
-
-    if (!anthropic) {
-      // Fallback to local response generation
-      console.log("No Anthropic API key found, using local response generation");
-      const response = await generateLocalResponse(message);
-      return NextResponse.json({
-        message: response,
-        timestamp: new Date().toISOString(),
-        source: "local",
-      });
-    }
-
     // Get current forecast data for context
     let forecastContext = "";
+    let forecast;
     try {
-      const forecast = await getCurrentForecast();
+      forecast = await getCurrentForecast();
       forecastContext = `
 CURRENT FORECAST DATA (as of ${forecast.modelRunTimestamp}):
 
@@ -141,6 +163,14 @@ Timing:
 - Mixing window: ${forecast.timing.mixingWindow[0]} to ${forecast.timing.mixingWindow[1]}
 - Snow ends: ${forecast.timing.snowEnds}
 
+${forecast.eventStatus ? `
+Event Status:
+- Phase: ${forecast.eventStatus.phase} (${forecast.eventStatus.phaseDescription})
+- Hours remaining: ${forecast.eventStatus.hoursRemaining}
+- Percent complete: ${forecast.eventStatus.percentComplete}%
+- Observed snowfall: ${forecast.eventStatus.observedSnowfall}"
+` : ""}
+
 Data Sources:
 - NWS Forecast: ${forecast.dataSources.nwsForecast.status} (${forecast.dataSources.nwsForecast.updateTime})
 - NWS AFD: ${forecast.dataSources.nwsAFD.status} (${forecast.dataSources.nwsAFD.issueTime})
@@ -173,25 +203,30 @@ ${forecastContext}`;
     // Build message history for multi-turn conversation
     const messages = [
       ...history.map((h: { role: string; content: string }) => ({
-        role: h.role as "user" | "assistant",
+        role: h.role,
         content: h.content,
       })),
-      { role: "user" as const, content: message },
+      { role: "user", content: message },
     ];
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-    });
+    // Try Groq API (open source Llama) first
+    const groqResponse = await callGroqAPI(systemPrompt, messages);
 
-    const assistantMessage =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    if (groqResponse) {
+      return NextResponse.json({
+        message: groqResponse,
+        timestamp: new Date().toISOString(),
+        source: "groq-llama",
+      });
+    }
 
+    // Fallback to local response generation
+    console.log("Groq API not available, using local response generation");
+    const localResponse = await generateLocalResponse(message);
     return NextResponse.json({
-      message: assistantMessage,
+      message: localResponse,
       timestamp: new Date().toISOString(),
+      source: "local",
     });
   } catch (error) {
     console.error("Chat API error:", error);

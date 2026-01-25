@@ -93,6 +93,15 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-25 (Event Day - Update 2)
+- **Switched to Open Source LLM**: Chat now uses Groq API with Llama 3.1 70B
+  - Replaced Anthropic SDK with direct Groq API calls
+  - Uses `llama-3.1-70b-versatile` model (open source)
+  - Removed `@anthropic-ai/sdk` dependency
+  - Set `GROQ_API_KEY` env var to enable (free tier available)
+  - Falls back to local responses if no API key
+- Files changed: `app/api/chat/route.ts`, `package.json`
+
 ### 2026-01-25 (Event Day - Update 1)
 - **Real-Time Event Tracking**: Model is now time-aware and tracks storm progress
   - Added `EventPhase` tracking: pre-event, early-event, mid-event, late-event, post-event
