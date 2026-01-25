@@ -100,6 +100,51 @@ export interface CurrentConditions {
 }
 
 /**
+ * Event phase tracking - critical for mid-event updates
+ */
+export type EventPhase = "pre-event" | "early-event" | "mid-event" | "late-event" | "post-event";
+
+export interface EventTiming {
+  snowStarts: Date;
+  heaviestSnow: Date;
+  mixingWindowStart: Date;
+  mixingWindowEnd: Date;
+  snowEnds: Date;
+}
+
+/**
+ * Get current event phase based on real time
+ */
+export function getEventPhase(timing: EventTiming): EventPhase {
+  const now = new Date();
+
+  if (now < timing.snowStarts) {
+    return "pre-event";
+  } else if (now < timing.heaviestSnow) {
+    return "early-event";
+  } else if (now < timing.mixingWindowStart) {
+    return "mid-event";
+  } else if (now < timing.snowEnds) {
+    return "late-event";
+  } else {
+    return "post-event";
+  }
+}
+
+/**
+ * Get the current storm timing for Jan 24-26, 2026 event
+ */
+export function getStormTiming(): EventTiming {
+  return {
+    snowStarts: new Date("2026-01-25T06:00:00Z"),
+    heaviestSnow: new Date("2026-01-25T12:00:00Z"),
+    mixingWindowStart: new Date("2026-01-25T22:00:00Z"),
+    mixingWindowEnd: new Date("2026-01-26T04:00:00Z"),
+    snowEnds: new Date("2026-01-26T12:00:00Z"),
+  };
+}
+
+/**
  * Generate scenarios based on current NWS guidance
  * Updated for Jan 24, 2026 forecast
  *
@@ -265,12 +310,12 @@ export function calculatePolymarketProbabilities(
 }
 
 /**
- * Get current conditions based on latest NWS guidance (Jan 24, 2026)
+ * Get current conditions based on latest NWS guidance and event phase
  *
  * CRITICAL: Optimized for NY CITY CENTRAL PARK specifically
  * Resolution source: weather.gov/wrh/climate?wfo=okx (CLINYC station)
  *
- * Key NWS guidance:
+ * Key NWS guidance (as of Jan 25, 2026):
  * - "Around 10 inches near the coast" (Central Park IS coastal NYC)
  * - "Around 16 inches well inland" (NOT applicable to Central Park)
  * - Sunday: 7-11 inches snow/sleet
@@ -278,8 +323,46 @@ export function calculatePolymarketProbabilities(
  * - Monday: <0.5 inch
  *
  * Central Park is a COASTAL location - mixing risk caps upside potential.
+ *
+ * @param observedSnowfallOverride - Optional: pass observed snowfall if known
  */
-export function getCurrentConditions(): CurrentConditions {
+export function getCurrentConditions(observedSnowfallOverride?: number): CurrentConditions {
+  const timing = getStormTiming();
+  const phase = getEventPhase(timing);
+  const now = new Date();
+
+  // Calculate hours into event for observed snowfall estimation
+  const hoursIntoEvent = Math.max(0, (now.getTime() - timing.snowStarts.getTime()) / (1000 * 60 * 60));
+
+  // Estimate observed snowfall based on event phase if not provided
+  // Snow rate assumed: ~1-1.5"/hour during heavy snow, 0.5"/hour otherwise
+  let estimatedObserved = 0;
+  if (phase === "early-event") {
+    // First few hours, moderate rates
+    estimatedObserved = Math.min(hoursIntoEvent * 0.8, 3);
+  } else if (phase === "mid-event") {
+    // Heavy snow period
+    estimatedObserved = Math.min(3 + (hoursIntoEvent - 6) * 1.2, 8);
+  } else if (phase === "late-event") {
+    // Mixing may be reducing accumulation
+    estimatedObserved = Math.min(8 + (hoursIntoEvent - 16) * 0.3, 10);
+  } else if (phase === "post-event") {
+    // Event over, use NWS median as estimate
+    estimatedObserved = 10;
+  }
+
+  const observedSnowfall = observedSnowfallOverride ?? (phase === "pre-event" ? 0.3 : Math.round(estimatedObserved * 10) / 10);
+
+  // Adjust confidence based on phase
+  // Pre-event: more uncertainty, Mid-event: less uncertainty as we see verification
+  let mixingRisk: "low" | "medium" | "high" = "medium";
+  let trackUncertainty: "low" | "medium" | "high" = "medium";
+
+  if (phase === "late-event" || phase === "post-event") {
+    // We should know by now if mixing occurred
+    trackUncertainty = "low";
+  }
+
   return {
     // Central Park specific forecast (coastal NYC)
     // NWS explicitly says "around 10 inches near the coast"
@@ -290,14 +373,13 @@ export function getCurrentConditions(): CurrentConditions {
     // Mixing risk is MEDIUM-HIGH for Central Park (coastal)
     // NWS mentions potential mixing late Sunday for coastal areas
     // This is the key factor limiting upside for Central Park
-    mixingRisk: "medium",
+    mixingRisk,
 
-    // Track uncertainty is medium - models in decent agreement
-    trackUncertainty: "medium",
+    // Track uncertainty decreases as event verifies
+    trackUncertainty,
 
-    // OBSERVED: 0.3" already recorded at Central Park on Jan 24
-    // Source: weather.gov/wrh/climate?wfo=okx
-    observedSnowfall: 0.3,
+    // Observed snowfall - estimated based on event phase
+    observedSnowfall,
 
     // Model spread ~3-4 inches for Central Park
     modelSpread: 4,
@@ -305,11 +387,48 @@ export function getCurrentConditions(): CurrentConditions {
 }
 
 /**
+ * Get event status information for display
+ */
+export function getEventStatus(): {
+  phase: EventPhase;
+  phaseDescription: string;
+  hoursRemaining: number;
+  percentComplete: number;
+  timing: EventTiming;
+} {
+  const timing = getStormTiming();
+  const phase = getEventPhase(timing);
+  const now = new Date();
+
+  const totalDuration = timing.snowEnds.getTime() - timing.snowStarts.getTime();
+  const elapsed = Math.max(0, now.getTime() - timing.snowStarts.getTime());
+  const percentComplete = Math.min(100, Math.round((elapsed / totalDuration) * 100));
+  const hoursRemaining = Math.max(0, (timing.snowEnds.getTime() - now.getTime()) / (1000 * 60 * 60));
+
+  const phaseDescriptions: Record<EventPhase, string> = {
+    "pre-event": "Snow expected to begin soon",
+    "early-event": "Snow beginning - accumulation starting",
+    "mid-event": "Heavy snow in progress",
+    "late-event": "Snow tapering - possible mixing",
+    "post-event": "Event complete - final totals being recorded",
+  };
+
+  return {
+    phase,
+    phaseDescription: phaseDescriptions[phase],
+    hoursRemaining: Math.round(hoursRemaining * 10) / 10,
+    percentComplete,
+    timing,
+  };
+}
+
+/**
  * Run the improved model and return full results
  */
-export function runImprovedModel() {
-  const conditions = getCurrentConditions();
+export function runImprovedModel(observedSnowfallOverride?: number) {
+  const conditions = getCurrentConditions(observedSnowfallOverride);
   const scenarios = generateImprovedScenarios(conditions);
+  const eventStatus = getEventStatus();
 
   const kalshiProbs = calculateKalshiProbabilities(scenarios);
   const polymarketProbs = calculatePolymarketProbabilities(scenarios);
@@ -320,6 +439,12 @@ export function runImprovedModel() {
   return {
     timestamp: new Date().toISOString(),
     conditions,
+    eventStatus: {
+      phase: eventStatus.phase,
+      phaseDescription: eventStatus.phaseDescription,
+      hoursRemaining: eventStatus.hoursRemaining,
+      percentComplete: eventStatus.percentComplete,
+    },
     scenarios: scenarios.map(s => ({
       ...s,
       probability: Math.round(s.probability * 1000) / 1000,
