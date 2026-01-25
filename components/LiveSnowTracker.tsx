@@ -16,7 +16,11 @@ import {
   Clock,
   MapPin,
   ExternalLink,
+  TrendingUp,
+  Target,
+  Scale,
 } from "lucide-react";
+import { useForecast } from "@/components/RealtimeProvider";
 
 interface LiveSnowData {
   success: boolean;
@@ -106,6 +110,9 @@ export function LiveSnowTracker() {
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
 
+  // Get forecast data for comparison
+  const { forecast } = useForecast();
+
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -136,6 +143,12 @@ export function LiveSnowTracker() {
 
   const obs = data?.observation;
   const storm = data?.stormTracking;
+
+  // Model comparison values
+  const modelMedian = forecast?.distribution?.median || 10.3;
+  const modelP10 = forecast?.distribution?.p10 || 6.8;
+  const modelP90 = forecast?.distribution?.p90 || 15.2;
+  const currentAccumulation = storm?.manualAccumulation?.inches || 0;
 
   return (
     <div className="space-y-4">
@@ -222,18 +235,77 @@ export function LiveSnowTracker() {
                   </a>
                 </div>
 
-                {/* Estimated accumulation */}
-                {storm?.estimatedAccumulation?.inches !== null && storm?.estimatedAccumulation?.inches !== undefined && (
-                  <div className="bg-muted/30 rounded-lg p-3 text-center">
-                    <div className="text-sm text-muted-foreground">Estimated from Precip Data</div>
-                    <div className="text-2xl font-bold font-mono text-muted-foreground/70">
-                      ~{storm?.estimatedAccumulation?.inches?.toFixed(1) || "0.0"}"
+                {/* Model vs Actual Comparison */}
+                <div className="bg-gradient-to-r from-sky-500/10 to-emerald-500/10 rounded-lg p-4 border border-sky-500/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Scale className="w-4 h-4 text-emerald-400" />
+                    <span className="text-sm font-medium">Model vs Actual</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-xs text-muted-foreground">P10</div>
+                      <div className="font-mono font-bold text-muted-foreground">{modelP10.toFixed(1)}"</div>
                     </div>
-                    <div className="text-xs text-muted-foreground/50 mt-1">
-                      {storm?.estimatedAccumulation?.note || ""}
+                    <div>
+                      <div className="text-xs text-emerald-400">Median</div>
+                      <div className="font-mono font-bold text-emerald-400">{modelMedian.toFixed(1)}"</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">P90</div>
+                      <div className="font-mono font-bold text-muted-foreground">{modelP90.toFixed(1)}"</div>
                     </div>
                   </div>
-                )}
+                  {/* Progress bar showing current accumulation vs model range */}
+                  <div className="mt-3">
+                    <div className="relative h-3 bg-muted/50 rounded-full overflow-hidden">
+                      {/* Model range (P10-P90) */}
+                      <div
+                        className="absolute h-full bg-muted/50 rounded-full"
+                        style={{
+                          left: `${(modelP10 / (modelP90 + 2)) * 100}%`,
+                          width: `${((modelP90 - modelP10) / (modelP90 + 2)) * 100}%`,
+                        }}
+                      />
+                      {/* Median marker */}
+                      <div
+                        className="absolute w-0.5 h-full bg-emerald-400"
+                        style={{ left: `${(modelMedian / (modelP90 + 2)) * 100}%` }}
+                      />
+                      {/* Current accumulation marker */}
+                      <div
+                        className="absolute w-2 h-full bg-sky-400 rounded-full transition-all duration-500"
+                        style={{ left: `${Math.min((currentAccumulation / (modelP90 + 2)) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+                      <span>0"</span>
+                      <span className="text-sky-400">Current: {currentAccumulation.toFixed(1)}"</span>
+                      <span>{(modelP90 + 2).toFixed(0)}"</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resolution Criteria Box */}
+                <div className="bg-amber-500/5 rounded-lg p-3 border border-amber-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Target className="w-4 h-4 text-amber-400" />
+                    <span className="text-sm font-medium text-amber-400">Resolution Criteria</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p><strong>Source:</strong> NWS Daily Climate Report (CLINYC)</p>
+                    <p><strong>Location:</strong> NY City Central Park, NY</p>
+                    <p><strong>Measurement:</strong> "New Snow (IN)" for Jan 24-26, 2026</p>
+                    <p><strong>Settlement:</strong> Sum of daily snowfall totals</p>
+                  </div>
+                  <a
+                    href="https://forecast.weather.gov/product.php?site=OKX&issuedby=NYC&product=CLI&format=txt&version=1&glossary=0"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 text-xs text-amber-400 hover:text-amber-300"
+                  >
+                    View Daily Climate Report <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
             )}
           </CardContent>
