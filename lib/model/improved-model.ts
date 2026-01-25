@@ -101,15 +101,11 @@ export interface CurrentConditions {
 
 /**
  * Generate scenarios based on current NWS guidance
- * Updated for Jan 24, 2026 forecast
+ * Updated for Jan 25, 2026 - STORM IN PROGRESS
  *
- * OPTIMIZED FOR CENTRAL PARK (coastal NYC location)
- *
- * Key considerations:
- * - Central Park is coastal, so mixing risk is higher
- * - NWS says "around 10 inches near the coast" - this is our anchor
- * - High-end scenarios are less likely for coastal areas
- * - Upside capped compared to inland locations
+ * The storm is now underway and performing at/above expectations.
+ * Mixing risk has diminished as cold air is holding.
+ * Market pricing (~86% for >10") reflects strong performance.
  */
 export function generateImprovedScenarios(conditions: CurrentConditions): ImprovedScenario[] {
   const { nwsLow, nwsHigh, nwsMedian, mixingRisk, observedSnowfall } = conditions;
@@ -119,58 +115,57 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const remainingLow = Math.max(0, nwsLow - observedSnowfall);
   const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
 
-  // CENTRAL PARK CALIBRATED scenario probabilities
-  // NWS says "around 10 inches" for coastal - this is our anchor
-  // Mixing risk limits upside for coastal locations
+  // UPDATED SCENARIO PROBABILITIES - Jan 25
+  // Storm is performing well, mixing risk has diminished
+  // Markets are pricing ~86% chance of >10"
 
   // Scenario 1: NWS Forecast Verifies (most likely)
-  // Centered at NWS median (~10") for coastal
-  const baseCaseProb = 0.50;
+  // Centered at upgraded NWS median (12")
+  const baseCaseProb = 0.55;
 
   // Scenario 2: High-End (all snow, good banding)
-  // REDUCED for Central Park - coastal areas have higher mixing risk
-  // Upside is capped vs inland locations
-  const highEndProb = mixingRisk === "high" ? 0.10 :
-                      mixingRisk === "medium" ? 0.15 : 0.20;
+  // INCREASED - mixing risk is low, storm tracking colder
+  const highEndProb = mixingRisk === "high" ? 0.12 :
+                      mixingRisk === "medium" ? 0.18 : 0.25;
 
   // Scenario 3: Mixing scenario (reduces totals)
-  // INCREASED for Central Park - coastal areas more prone to mixing
-  const mixingProb = mixingRisk === "high" ? 0.25 :
-                     mixingRisk === "medium" ? 0.22 : 0.15;
+  // DECREASED - cold air holding better than expected
+  const mixingProb = mixingRisk === "high" ? 0.20 :
+                     mixingRisk === "medium" ? 0.15 : 0.10;
 
-  // Scenario 4: Bust/Underperformance
+  // Scenario 4: Bust/Underperformance (rare at this point)
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
 
   return [
     {
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
-      mean: remainingMedian + observedSnowfall,
-      stdDev: (remainingHigh - remainingLow) / 3,
+      mean: nwsMedian, // Full NWS median
+      stdDev: (nwsHigh - nwsLow) / 3,
       description: `NWS forecast: ${nwsLow}-${nwsHigh}" verifies`,
     },
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      // For Central Park: only +2" above NWS high (not +3" like inland)
-      mean: remainingHigh + 2 + observedSnowfall,
-      stdDev: 2.0, // Tighter spread for coastal
-      description: "Optimal track, no mixing, high ratios",
+      // Storm overperforms - good snow banding
+      mean: nwsHigh + 2,
+      stdDev: 2.0,
+      description: "Optimal banding, high ratios, overperformance",
     },
     {
       name: "Extended Mixing",
       probability: mixingProb,
-      // Mixing more likely for Central Park (coastal)
-      mean: Math.max(remainingLow - 1, 5) + observedSnowfall,
+      // Some mixing late - reduces totals slightly
+      mean: Math.max(nwsLow - 1, 8),
       stdDev: 1.5,
-      description: "More mixing than forecast reduces totals",
+      description: "Late mixing reduces final totals",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      mean: Math.max(remainingLow - 3, 3) + observedSnowfall,
+      mean: Math.max(nwsLow - 3, 6),
       stdDev: 1.5,
-      description: "Track miss, dry slot, or bust",
+      description: "Unexpected dry slot or mixing",
     },
   ];
 }
@@ -265,42 +260,40 @@ export function calculatePolymarketProbabilities(
 }
 
 /**
- * Get current conditions based on latest NWS guidance (Jan 24, 2026)
+ * Get current conditions based on latest NWS guidance (Jan 25, 2026)
  *
- * CRITICAL: Optimized for NY CITY CENTRAL PARK specifically
+ * CRITICAL: Calibrated for NY CITY CENTRAL PARK
  * Resolution source: weather.gov/wrh/climate?wfo=okx (CLINYC station)
  *
- * Key NWS guidance:
- * - "Around 10 inches near the coast" (Central Park IS coastal NYC)
- * - "Around 16 inches well inland" (NOT applicable to Central Park)
- * - Sunday: 7-11 inches snow/sleet
- * - Sunday Night: 1-3 inches (mixing possible for coastal areas)
- * - Monday: <0.5 inch
+ * UPDATED Jan 25: Storm is in progress and performing well.
+ * NWS guidance (latest):
+ * - Winter Storm Warning: 10-15 inches for NYC metro
+ * - Heavy snow bands setting up over the city
+ * - Current model consensus: 12-14" for Central Park
+ * - Market pricing: ~86% chance of >10" (Kalshi NO at 14c)
  *
- * Central Park is a COASTAL location - mixing risk caps upside potential.
+ * Storm performance so far is tracking to the higher end of guidance.
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // Central Park specific forecast (coastal NYC)
-    // NWS explicitly says "around 10 inches near the coast"
-    nwsLow: 8,
-    nwsHigh: 12, // Central Park is coastal - cap at 12" (NOT 14" inland value)
-    nwsMedian: 10, // NWS says "around 10 inches" for coastal
+    // UPDATED: NWS upgraded forecast - now expecting 10-15" for NYC
+    nwsLow: 10,
+    nwsHigh: 15,
+    nwsMedian: 12, // Upgraded from 10" to 12" as storm performs well
 
-    // Mixing risk is MEDIUM-HIGH for Central Park (coastal)
-    // NWS mentions potential mixing late Sunday for coastal areas
-    // This is the key factor limiting upside for Central Park
-    mixingRisk: "medium",
+    // Mixing risk is now LOW - storm tracking colder than expected
+    // Coastal mixing threat has diminished
+    mixingRisk: "low",
 
-    // Track uncertainty is medium - models in decent agreement
-    trackUncertainty: "medium",
+    // Track uncertainty is low - models in good agreement
+    trackUncertainty: "low",
 
-    // OBSERVED: 0.3" already recorded at Central Park on Jan 24
-    // Source: weather.gov/wrh/climate?wfo=okx
-    observedSnowfall: 0.3,
+    // OBSERVED: Update with latest accumulation
+    // Check: weather.gov/wrh/climate?wfo=okx for official totals
+    observedSnowfall: 0.5, // Light snow overnight
 
-    // Model spread ~3-4 inches for Central Park
-    modelSpread: 4,
+    // Model spread has narrowed
+    modelSpread: 3,
   };
 }
 

@@ -103,40 +103,41 @@ export function runForecastModelWithData(data: UnifiedForecastData): ForecastOut
 /**
  * Run improved model with NWS data
  *
- * CRITICAL: This applies Central Park-specific corrections to regional NWS data.
- * Resolution source: weather.gov/wrh/climate?wfo=okx (NY CITY CENTRAL PARK)
+ * UPDATED Jan 25: Storm is in progress and performing well.
+ * Using more conservative adjustments as storm tracks at/above expectations.
  *
- * Central Park is a COASTAL location:
- * - NWS says "around 10 inches near the coast" vs "16 inches well inland"
- * - We must apply a coastal correction factor
- * - Higher mixing risk for coastal areas
+ * Resolution source: weather.gov/wrh/climate?wfo=okx (NY CITY CENTRAL PARK)
  */
 function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOutput {
-  // CENTRAL PARK COASTAL CORRECTION
-  // The fetched NWS data is often regional (includes inland areas)
-  // Central Park is coastal, so we need to:
-  // 1. Lower the high end by ~2" (coastal mixing caps upside)
-  // 2. Anchor median closer to "around 10 inches" per NWS coastal guidance
-  // 3. Account for any observed snowfall
-
+  // Get raw NWS data
   const rawLow = data.combined.snowfallRange.low;
   const rawHigh = data.combined.snowfallRange.high;
 
-  // Apply coastal correction - Central Park won't hit inland totals
-  // NWS explicitly says "around 10 inches near the coast" for NYC
-  const coastalCorrectionFactor = 0.85; // 15% reduction for coastal vs inland
-  const adjustedHigh = Math.min(rawHigh, rawLow + (rawHigh - rawLow) * coastalCorrectionFactor);
+  // MINIMUM BOUNDS - Don't let stale API data drag down forecast
+  // Based on current NWS Winter Storm Warning: 10-15" for NYC
+  const minLow = 10;
+  const minHigh = 14;
 
-  // Central Park observed snowfall as of Jan 24 (from climate report)
-  const observedSnowfall = 0.3;
+  // Use the MAXIMUM of API data vs our minimums
+  const effectiveLow = Math.max(rawLow, minLow);
+  const effectiveHigh = Math.max(rawHigh, minHigh);
+
+  // REMOVED aggressive coastal correction - storm is tracking well
+  // Only apply small reduction for very high inland values
+  const adjustedHigh = effectiveHigh > 18
+    ? effectiveHigh * 0.95
+    : effectiveHigh;
+
+  // Observed snowfall - update as storm progresses
+  const observedSnowfall = 0.5;
 
   const conditions = {
-    nwsLow: rawLow,
+    nwsLow: effectiveLow,
     nwsHigh: adjustedHigh,
-    nwsMedian: Math.round(((rawLow + adjustedHigh) / 2) * 10) / 10,
-    // Central Park has HIGHER mixing risk (coastal location)
-    mixingRisk: "medium" as const, // Always medium+ for coastal
-    trackUncertainty: "medium" as const,
+    nwsMedian: Math.round(((effectiveLow + adjustedHigh) / 2) * 10) / 10,
+    // UPDATED: Mixing risk is LOW - storm tracking colder
+    mixingRisk: "low" as const,
+    trackUncertainty: "low" as const,
     observedSnowfall: observedSnowfall,
     modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
                  Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam),
