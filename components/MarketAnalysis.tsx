@@ -690,6 +690,7 @@ function KalshiMarketRow({
 }) {
   const edgePct = edge ? getEdgePct(edge) : 0;
   const hasEdge = edge && edge.direction !== "NO_EDGE";
+  const isNo = edge?.direction === "BUY_NO";
   const hasPosition = position && position.position !== 0;
   const isLong = hasPosition && (position.position || 0) > 0;
   const pnl = position?.unrealized_pnl || 0;
@@ -759,27 +760,24 @@ function KalshiMarketRow({
           {((market.yes.ask - market.yes.bid) * 100).toFixed(0)}¢
         </div>
       </td>
-      {/* Model */}
+      {/* Model - shows recommended side */}
       <td className="py-3 px-2 text-right">
-        <div className="text-[10px] text-muted-foreground">model</div>
-        <div className="font-mono text-sm">
+        <div className={`text-[10px] ${isNo ? "text-red-400/70" : "text-muted-foreground"}`}>
+          {isNo ? "NO model" : "model"}
+        </div>
+        <div className={`font-mono text-sm ${isNo ? "text-red-400" : ""}`}>
           {edge ? formatProb(edge.modelProb) : "—"}
         </div>
       </td>
-      {/* Edge */}
+      {/* Edge - always positive for recommended side */}
       <td className="py-3 px-2 text-right">
         <div className="text-[10px] text-muted-foreground">edge</div>
         <span
           className={`font-mono text-sm font-semibold ${
-            edgePct > 5
-              ? "text-emerald-400"
-              : edgePct < -5
-                ? "text-red-400"
-                : "text-muted-foreground"
+            hasEdge ? "text-emerald-400" : "text-muted-foreground"
           }`}
         >
-          {edgePct >= 0 ? "+" : ""}
-          {edgePct.toFixed(1)}%
+          {hasEdge ? "+" : ""}{edgePct.toFixed(1)}%
         </span>
       </td>
       {/* Signal */}
@@ -804,29 +802,33 @@ function PolymarketMarketRow({
   const rangeMatch = market.question.match(/(\d+[-–]\d+|\d+\+|<\d+|under \d+)/i);
   const range = market.rangeDisplay || market.groupItemTitle || rangeMatch?.[0] || market.question.substring(0, 20);
 
-  // Get model probability - from edge or from bucket probabilities
-  let modelProb: number | undefined;
-  if (edge?.modelProb !== undefined) {
-    modelProb = edge.modelProb;
+  // Get model probability (YES side) - from edge or from bucket probabilities
+  let modelProbYes: number | undefined;
+  if (edge?.modelProbYes !== undefined) {
+    modelProbYes = edge.modelProbYes;
   } else if (bucketProbabilities) {
     // Try to match range to bucket probabilities
     const normalizedRange = range.replace(/["\s]/g, "");
-    modelProb = bucketProbabilities[normalizedRange] ||
-                bucketProbabilities[range] ||
-                bucketProbabilities[range.replace('"', '')];
+    modelProbYes = bucketProbabilities[normalizedRange] ||
+                   bucketProbabilities[range] ||
+                   bucketProbabilities[range.replace('"', '')];
   }
 
-  // Calculate edge
-  const marketProb = market.yes.price;
-  const edgeValue = modelProb !== undefined ? modelProb - marketProb : 0;
-  const edgePct = edgeValue * 100;
+  // Calculate edge (YES side)
+  const marketProbYes = market.yes.price;
+  const rawEdge = modelProbYes !== undefined ? modelProbYes - marketProbYes : 0;
 
   // Determine signal direction
   let direction: "BUY_YES" | "BUY_NO" | "NO_EDGE" = "NO_EDGE";
-  if (edgeValue > 0.03) direction = "BUY_YES";
-  else if (edgeValue < -0.03) direction = "BUY_NO";
+  if (rawEdge > 0.03) direction = "BUY_YES";
+  else if (rawEdge < -0.03) direction = "BUY_NO";
 
   const hasEdge = direction !== "NO_EDGE";
+  const isNo = direction === "BUY_NO";
+
+  // For display: show recommended side values
+  const displayModelProb = isNo && modelProbYes !== undefined ? (1 - modelProbYes) : modelProbYes;
+  const displayEdgePct = isNo ? Math.abs(rawEdge) * 100 : rawEdge * 100;
 
   return (
     <tr className={`border-b border-border/50 ${hasEdge ? "bg-muted/30" : ""}`}>
@@ -851,27 +853,24 @@ function PolymarketMarketRow({
           </div>
         </div>
       </td>
-      {/* Model */}
+      {/* Model - shows recommended side */}
       <td className="py-3 px-2 text-right">
-        <div className="text-[10px] text-muted-foreground">model</div>
-        <div className="font-mono text-sm">
-          {modelProb !== undefined ? formatProb(modelProb) : "—"}
+        <div className={`text-[10px] ${isNo ? "text-red-400/70" : "text-muted-foreground"}`}>
+          {isNo ? "NO model" : "model"}
+        </div>
+        <div className={`font-mono text-sm ${isNo ? "text-red-400" : ""}`}>
+          {displayModelProb !== undefined ? formatProb(displayModelProb) : "—"}
         </div>
       </td>
-      {/* Edge */}
+      {/* Edge - always positive for recommended side */}
       <td className="py-3 px-2 text-right">
         <div className="text-[10px] text-muted-foreground">edge</div>
         <span
           className={`font-mono text-sm font-semibold ${
-            edgePct > 5
-              ? "text-emerald-400"
-              : edgePct < -5
-                ? "text-red-400"
-                : "text-muted-foreground"
+            hasEdge ? "text-emerald-400" : "text-muted-foreground"
           }`}
         >
-          {edgePct >= 0 ? "+" : ""}
-          {edgePct.toFixed(1)}%
+          {hasEdge ? "+" : ""}{displayEdgePct.toFixed(1)}%
         </span>
       </td>
       {/* Volume */}
@@ -891,29 +890,35 @@ function PolymarketMarketRow({
 
 function OpportunityCard({ edge, rank }: { edge: EdgeAnalysis; rank: number }) {
   const isYes = edge.direction === "BUY_YES";
-  const color = isYes ? "emerald" : "red";
-  const Icon = isYes ? TrendingUp : TrendingDown;
+  const isNo = edge.direction === "BUY_NO";
+  // Both YES and NO opportunities are positive edges now
+  const color = "emerald";
+  const Icon = TrendingUp;
 
   return (
     <div
-      className={`flex items-center justify-between p-3 rounded-lg border ${
-        isYes
-          ? "bg-emerald-500/5 border-emerald-500/20"
-          : "bg-red-500/5 border-red-500/20"
-      }`}
+      className="flex items-center justify-between p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/20"
     >
       <div className="flex items-center gap-3">
         <div
-          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-            isYes ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-          }`}
+          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-emerald-500/20 text-emerald-400"
         >
           {rank}
         </div>
-        <Icon className={`w-5 h-5 text-${color}-400`} />
+        <Icon className="w-5 h-5 text-emerald-400" />
         <div>
           <div className="font-medium flex items-center gap-2">
             {edge.market}
+            <Badge
+              variant="outline"
+              className={
+                isYes
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs"
+                  : "bg-red-500/10 text-red-400 border-red-500/30 text-xs"
+              }
+            >
+              {isYes ? "YES" : "NO"}
+            </Badge>
             <Badge
               variant="outline"
               className={
@@ -926,15 +931,14 @@ function OpportunityCard({ edge, rank }: { edge: EdgeAnalysis; rank: number }) {
             </Badge>
           </div>
           <div className="text-xs text-muted-foreground">
-            Model: {formatProb(edge.modelProb)} | Market:{" "}
+            {isNo ? "NO " : ""}Model: {formatProb(edge.modelProb)} | Market:{" "}
             {formatProb(edge.marketProb)}
           </div>
         </div>
       </div>
       <div className="text-right">
-        <div className={`font-mono font-bold text-lg text-${color}-400`}>
-          {isYes ? "+" : ""}
-          {getEdgePct(edge).toFixed(1)}%
+        <div className="font-mono font-bold text-lg text-emerald-400">
+          +{getEdgePct(edge).toFixed(1)}%
         </div>
         <div className="text-xs text-muted-foreground">
           Kelly: {getKellyPct(edge).toFixed(1)}%

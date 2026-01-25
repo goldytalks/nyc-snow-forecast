@@ -75,10 +75,12 @@ export interface EdgeAnalysis {
   type: "strike" | "range";
   threshold?: number;
   range?: string;
-  modelProb: number;
-  marketProb: number;
-  edge: number;
-  edgePct: number;
+  modelProb: number;      // Model probability for the side we're recommending
+  marketProb: number;     // Market probability for the side we're recommending
+  modelProbYes: number;   // Always the YES side model prob
+  marketProbYes: number;  // Always the YES side market prob
+  edge: number;           // Always positive for the recommended side
+  edgePct: number;        // Always positive for the recommended side
   direction: "BUY_YES" | "BUY_NO" | "NO_EDGE";
   confidence: "HIGH" | "MEDIUM" | "LOW";
   ev: number;
@@ -100,30 +102,35 @@ export function calculateAllEdges(
   for (const market of KALSHI_PRICES) {
     if (market.threshold === undefined) continue;
 
-    const modelProb = modelStrikeProbabilities[market.threshold.toString()] || 0;
-    const marketProb = market.yesPrice / 100;
-    const edge = modelProb - marketProb;
+    const modelProbYes = modelStrikeProbabilities[market.threshold.toString()] || 0;
+    const marketProbYes = market.yesPrice / 100;
+    const rawEdge = modelProbYes - marketProbYes;
 
     let direction: EdgeAnalysis["direction"] = "NO_EDGE";
-    if (edge > EDGE_THRESHOLD) direction = "BUY_YES";
-    if (edge < -EDGE_THRESHOLD) direction = "BUY_NO";
+    if (rawEdge > EDGE_THRESHOLD) direction = "BUY_YES";
+    if (rawEdge < -EDGE_THRESHOLD) direction = "BUY_NO";
+
+    // For BUY_NO, show the NO side probabilities and positive edge
+    const modelProb = direction === "BUY_NO" ? (1 - modelProbYes) : modelProbYes;
+    const marketProb = direction === "BUY_NO" ? (1 - marketProbYes) : marketProbYes;
+    const edge = direction === "BUY_NO" ? -rawEdge : rawEdge; // Always positive for recommended side
 
     // EV calculation
     const ev = direction === "BUY_YES"
-      ? modelProb * (1 - marketProb) - (1 - modelProb) * marketProb
+      ? modelProbYes * (1 - marketProbYes) - (1 - modelProbYes) * marketProbYes
       : direction === "BUY_NO"
-        ? (1 - modelProb) * marketProb - modelProb * (1 - marketProb)
+        ? (1 - modelProbYes) * marketProbYes - modelProbYes * (1 - marketProbYes)
         : 0;
 
     // Kelly criterion
-    const prob = direction === "BUY_YES" ? modelProb : (1 - modelProb);
-    const price = direction === "BUY_YES" ? marketProb : (1 - marketProb);
-    const odds = (1 / price) - 1;
-    const kelly = Math.max(0, (odds * prob - (1 - prob)) / odds);
+    const prob = direction === "BUY_YES" ? modelProbYes : (1 - modelProbYes);
+    const price = direction === "BUY_YES" ? marketProbYes : (1 - marketProbYes);
+    const odds = price > 0 ? (1 / price) - 1 : 0;
+    const kelly = odds > 0 ? Math.max(0, (odds * prob - (1 - prob)) / odds) : 0;
 
     const confidence: EdgeAnalysis["confidence"] =
-      Math.abs(edge) >= 0.12 ? "HIGH" :
-      Math.abs(edge) >= 0.07 ? "MEDIUM" : "LOW";
+      Math.abs(rawEdge) >= 0.12 ? "HIGH" :
+      Math.abs(rawEdge) >= 0.07 ? "MEDIUM" : "LOW";
 
     edges.push({
       market: `>${market.threshold}"`,
@@ -131,6 +138,8 @@ export function calculateAllEdges(
       threshold: market.threshold,
       modelProb,
       marketProb,
+      modelProbYes,
+      marketProbYes,
       edge,
       edgePct: edge * 100,
       direction,
@@ -147,28 +156,33 @@ export function calculateAllEdges(
   for (const market of POLYMARKET_PRICES) {
     if (!market.range) continue;
 
-    const modelProb = rangeProbabilities[market.range] || 0;
-    const marketProb = market.yesPrice / 100;
-    const edge = modelProb - marketProb;
+    const modelProbYes = rangeProbabilities[market.range] || 0;
+    const marketProbYes = market.yesPrice / 100;
+    const rawEdge = modelProbYes - marketProbYes;
 
     let direction: EdgeAnalysis["direction"] = "NO_EDGE";
-    if (edge > EDGE_THRESHOLD) direction = "BUY_YES";
-    if (edge < -EDGE_THRESHOLD) direction = "BUY_NO";
+    if (rawEdge > EDGE_THRESHOLD) direction = "BUY_YES";
+    if (rawEdge < -EDGE_THRESHOLD) direction = "BUY_NO";
+
+    // For BUY_NO, show the NO side probabilities and positive edge
+    const modelProb = direction === "BUY_NO" ? (1 - modelProbYes) : modelProbYes;
+    const marketProb = direction === "BUY_NO" ? (1 - marketProbYes) : marketProbYes;
+    const edge = direction === "BUY_NO" ? -rawEdge : rawEdge; // Always positive for recommended side
 
     const ev = direction === "BUY_YES"
-      ? modelProb * (1 - marketProb) - (1 - modelProb) * marketProb
+      ? modelProbYes * (1 - marketProbYes) - (1 - modelProbYes) * marketProbYes
       : direction === "BUY_NO"
-        ? (1 - modelProb) * marketProb - modelProb * (1 - marketProb)
+        ? (1 - modelProbYes) * marketProbYes - modelProbYes * (1 - marketProbYes)
         : 0;
 
-    const prob = direction === "BUY_YES" ? modelProb : (1 - modelProb);
-    const price = direction === "BUY_YES" ? marketProb : (1 - marketProb);
+    const prob = direction === "BUY_YES" ? modelProbYes : (1 - modelProbYes);
+    const price = direction === "BUY_YES" ? marketProbYes : (1 - marketProbYes);
     const odds = price > 0 ? (1 / price) - 1 : 0;
     const kelly = odds > 0 ? Math.max(0, (odds * prob - (1 - prob)) / odds) : 0;
 
     const confidence: EdgeAnalysis["confidence"] =
-      Math.abs(edge) >= 0.12 ? "HIGH" :
-      Math.abs(edge) >= 0.07 ? "MEDIUM" : "LOW";
+      Math.abs(rawEdge) >= 0.12 ? "HIGH" :
+      Math.abs(rawEdge) >= 0.07 ? "MEDIUM" : "LOW";
 
     edges.push({
       market: market.range,
@@ -176,6 +190,8 @@ export function calculateAllEdges(
       range: market.range,
       modelProb,
       marketProb,
+      modelProbYes,
+      marketProbYes,
       edge,
       edgePct: edge * 100,
       direction,
