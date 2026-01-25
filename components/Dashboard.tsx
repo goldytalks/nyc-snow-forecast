@@ -11,6 +11,7 @@ import { StatusIndicator } from "@/components/StatusIndicator";
 import { TimingPanel } from "@/components/TimingPanel";
 import { MarketAnalysis } from "@/components/MarketAnalysis";
 import { DataSourcesPanel } from "@/components/DataSourcesPanel";
+import { OfficialSnowCount } from "@/components/OfficialSnowCount";
 import { MapPin, Snowflake, RefreshCw } from "lucide-react";
 import type { ForecastData } from "@/lib/types";
 
@@ -82,6 +83,14 @@ export function Dashboard({ initialData }: DashboardProps) {
             Market Analysis
           </h2>
           <MarketAnalysis strikeProbabilities={data.strikeProbabilities} />
+        </div>
+
+        {/* Official Snow Count - Live tracking */}
+        <div
+          className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"
+          style={{ animationDelay: "0.27s" }}
+        >
+          <OfficialSnowCount />
         </div>
 
         {/* Secondary Grid */}

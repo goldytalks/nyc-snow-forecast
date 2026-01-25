@@ -8,6 +8,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { getLatestCentralParkSnow } from "@/lib/data/fetchers/snow-observations";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -179,10 +180,11 @@ async function fetchRecentObservations(): Promise<NWSObservation[]> {
 
 export async function GET() {
   try {
-    // Fetch latest observation and recent history
-    const [latestObs, recentObs] = await Promise.all([
+    // Fetch latest observation, recent history, and official snow reports
+    const [latestObs, recentObs, officialSnow] = await Promise.all([
       fetchNWSObservation(),
       fetchRecentObservations(),
+      getLatestCentralParkSnow(),
     ]);
 
     if (!latestObs) {
@@ -306,11 +308,25 @@ export async function GET() {
       success: true,
       observation,
       stormTracking,
+      // Official snow count from NWS PNS/LSR
+      officialSnow: {
+        stormTotal: officialSnow.observed,
+        observationTime: officialSnow.observedTime,
+        source: officialSnow.source,
+        isOfficial: officialSnow.isOfficial,
+        lastChecked: officialSnow.lastChecked,
+        recentReports: officialSnow.allReports,
+      },
+      // Top-level fields for easy access
+      stormTotal: officialSnow.observed,
+      snowDepth: officialSnow.observed,
+      isOfficial: officialSnow.isOfficial,
+      observationTime: officialSnow.observedTime,
       metadata: {
         fetchedAt: new Date().toISOString(),
-        source: "NWS api.weather.gov",
+        source: "NWS api.weather.gov + NWS PNS/LSR",
         station: `${STATION_ID} - Central Park`,
-        note: "Snow depth rarely reported at this station. Accumulation is estimated from precipitation.",
+        note: "Official snow total from NWS Public Information Statement",
       },
     });
   } catch (error) {
