@@ -101,7 +101,12 @@ Production URL: https://nyc-snow-forecast.vercel.app
   - Current conditions: temperature, wind, visibility, humidity
   - Live "SNOWING NOW" indicator when snow is detected
   - Auto-refreshes every 60 seconds
-  - Links to official NWS climate report for verification
+  - **Model vs Actual Comparison**: Progress bar showing current accumulation vs model prediction
+  - **Resolution Criteria Box**: Clear explanation of settlement source
+    - Source: NWS Daily Climate Report (CLINYC)
+    - Location: NY City Central Park, NY
+    - Measurement: "New Snow (IN)" for Jan 24-26, 2026
+  - Direct links to official NWS climate reports
 - Files created: `app/api/live-snow/route.ts`, `components/LiveSnowTracker.tsx`
 - Files modified: `components/Dashboard.tsx`
 - Deployed to Vercel
