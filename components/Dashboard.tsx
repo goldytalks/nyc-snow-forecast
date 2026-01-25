@@ -11,6 +11,7 @@ import { StatusIndicator } from "@/components/StatusIndicator";
 import { TimingPanel } from "@/components/TimingPanel";
 import { MarketAnalysis } from "@/components/MarketAnalysis";
 import { DataSourcesPanel } from "@/components/DataSourcesPanel";
+import { LiveSnowTracker } from "@/components/LiveSnowTracker";
 import { MapPin, Snowflake, RefreshCw } from "lucide-react";
 import type { ForecastData } from "@/lib/types";
 
@@ -55,6 +56,11 @@ export function Dashboard({ initialData }: DashboardProps) {
             </button>
           </div>
         </header>
+
+        {/* Live Snow Tracking - Most Important Section */}
+        <div className="animate-fade-in" style={{ animationDelay: "0.05s" }}>
+          <LiveSnowTracker />
+        </div>
 
         {/* Main Grid */}
         <div
