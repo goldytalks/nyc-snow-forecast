@@ -204,7 +204,14 @@ export function ForecastChat() {
                           : "bg-muted"
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <div
+                        className="whitespace-pre-wrap prose prose-sm prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{
+                          __html: msg.content
+                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-emerald-400">$1</strong>')
+                            .replace(/\n/g, '<br/>')
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
