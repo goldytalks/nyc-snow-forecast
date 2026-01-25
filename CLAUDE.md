@@ -93,6 +93,17 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-25 (Update 4)
+- **Fixed P&L Calculation for NO Positions**
+  - Bug: Portfolio tracker was using YES price for NO positions
+  - This caused massively incorrect P&L (e.g., showing -$205 instead of -$6)
+  - Fix: Now uses correct price based on position side:
+    - YES positions (position > 0): use YES mid price
+    - NO positions (position < 0): use NO mid price
+  - P&L formula: `(current_price - entry_price) * position_size`
+- Files changed: `app/api/markets/route.ts`
+- Deployed to Vercel
+
 ### 2026-01-25 (Update 3)
 - **Live Snow Tracking**: Added real-time snow accumulation tracking for Central Park
   - New `/api/live-snow` endpoint fetches from NWS api.weather.gov
