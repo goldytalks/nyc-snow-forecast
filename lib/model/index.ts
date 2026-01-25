@@ -111,34 +111,39 @@ export function runForecastModelWithData(data: UnifiedForecastData): ForecastOut
  * Resolution source: weather.gov/wrh/climate?wfo=okx (NY CITY CENTRAL PARK)
  */
 function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOutput {
-  // Get raw NWS data
+  // UPDATED 3:44 PM ET Jan 25: Use STORM TOTAL from NWS Winter Storm Warning
+  // The API returns period-by-period forecasts which don't represent storm totals
+  // NWS Winter Storm Warning says 8-12" for NYC metro (confirmed by AFD)
+
+  // OBSERVED: 7.2" official Central Park measurement as of 2 PM ET
+  const observedSnowfall = 7.2;
+
+  // NWS STORM TOTAL forecast (from Winter Storm Warning, not period sums)
+  // Source: NWS AFD 3:42 PM ET - "9-12 inches are forecast for the NYC metro area"
+  // We use 8-12 as the full range accounting for mixing uncertainty
+  const stormTotalLow = 8;
+  const stormTotalHigh = 12;
+
+  // The API's period forecast can inform if we're tracking high/low
   const rawLow = data.combined.snowfallRange.low;
   const rawHigh = data.combined.snowfallRange.high;
 
-  // MINIMUM BOUNDS - Don't let stale API data drag down forecast
-  // Based on current NWS Winter Storm Warning: 10-15" for NYC
-  const minLow = 10;
-  const minHigh = 14;
+  // If API shows MORE remaining than expected, shift up slightly
+  const remainingExpectedHigh = stormTotalHigh - observedSnowfall; // ~4.8"
+  const effectiveLow = stormTotalLow;
+  const effectiveHigh = rawHigh > remainingExpectedHigh + 2
+    ? stormTotalHigh + 1
+    : stormTotalHigh;
 
-  // Use the MAXIMUM of API data vs our minimums
-  const effectiveLow = Math.max(rawLow, minLow);
-  const effectiveHigh = Math.max(rawHigh, minHigh);
-
-  // REMOVED aggressive coastal correction - storm is tracking well
-  // Only apply small reduction for very high inland values
-  const adjustedHigh = effectiveHigh > 18
-    ? effectiveHigh * 0.95
-    : effectiveHigh;
-
-  // Observed snowfall - update as storm progresses
-  const observedSnowfall = 0.5;
+  // CRITICAL: Mixing is ACTIVE as of 3:44 PM ET
+  // NWS confirms warm nose at 750mb, sleet falling, up to 1" sleet expected
+  const mixingRisk = "high" as const;
 
   const conditions = {
     nwsLow: effectiveLow,
-    nwsHigh: adjustedHigh,
-    nwsMedian: Math.round(((effectiveLow + adjustedHigh) / 2) * 10) / 10,
-    // UPDATED: Mixing risk is LOW - storm tracking colder
-    mixingRisk: "low" as const,
+    nwsHigh: effectiveHigh,
+    nwsMedian: Math.round(((effectiveLow + effectiveHigh) / 2) * 10) / 10,
+    mixingRisk: mixingRisk,
     trackUncertainty: "low" as const,
     observedSnowfall: observedSnowfall,
     modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
@@ -197,10 +202,10 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
       nam: { value: data.modelEstimates.nam, trend: "steady" },
     },
     keyUncertainties: [
-      `NWS Winter Storm Warning: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC metro`,
-      `Model median: ${distStats.median}" (P10-P90: ${distStats.p10}-${distStats.p90}")`,
-      `Mixing risk: ${conditions.mixingRisk} - cold air holding well`,
-      `Storm tracking at/above expectations`,
+      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for Central Park`,
+      `Observed: ${conditions.observedSnowfall}" as of 2 PM ET`,
+      `ACTIVE SLEET MIXING - warm nose at 750mb limiting totals`,
+      `Snow returns after 10 PM but at lighter rates`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",
@@ -383,9 +388,10 @@ export function runForecastModelImproved(): ForecastOutput {
       nam: { value: 11, trend: "steady" },
     },
     keyUncertainties: [
-      `NWS Winter Storm Warning: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC metro`,
+      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for Central Park`,
+      `Observed: ${conditions.observedSnowfall}" already on ground`,
+      `Mixing risk: ${conditions.mixingRisk} - sleet actively falling`,
       `Model median: ${distStats.median}" (P10-P90: ${distStats.p10}-${distStats.p90}")`,
-      `Mixing risk: ${conditions.mixingRisk} - cold air holding well`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",

@@ -110,62 +110,66 @@ export interface CurrentConditions {
 export function generateImprovedScenarios(conditions: CurrentConditions): ImprovedScenario[] {
   const { nwsLow, nwsHigh, nwsMedian, mixingRisk, observedSnowfall } = conditions;
 
-  // Remaining expected snow after observed
-  const remainingMedian = Math.max(0, nwsMedian - observedSnowfall);
-  const remainingLow = Math.max(0, nwsLow - observedSnowfall);
-  const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
+  // CRITICAL: Account for snow already on ground
+  // 7.2" already measured - scenarios should reflect FINAL totals
+  // Remaining precip will be mix of snow/sleet
 
-  // UPDATED SCENARIO PROBABILITIES - Jan 25
-  // Storm is performing well, mixing risk has diminished
-  // Markets are pricing ~86% chance of >10"
+  // UPDATED SCENARIO PROBABILITIES - Jan 25, 3:44 PM ET
+  // Sleet is ACTIVELY FALLING - warm nose at 750mb confirmed
+  // NWS says up to 1" sleet on top of snow (doesn't count toward total)
+  // Snow returns after 10 PM but at lighter rates
 
-  // Scenario 1: NWS Forecast Verifies (most likely)
-  // Centered at upgraded NWS median (12")
-  const baseCaseProb = 0.55;
+  // Scenario 1: NWS Forecast Verifies (8-12" range)
+  // Most likely outcome given current mixing
+  const baseCaseProb = 0.50;
 
-  // Scenario 2: High-End (all snow, good banding)
-  // INCREASED - mixing risk is low, storm tracking colder
-  const highEndProb = mixingRisk === "high" ? 0.12 :
-                      mixingRisk === "medium" ? 0.18 : 0.25;
+  // Scenario 2: High-End - requires mixing to be brief
+  // REDUCED because mixing is actively happening
+  const highEndProb = mixingRisk === "high" ? 0.15 :
+                      mixingRisk === "medium" ? 0.20 : 0.25;
 
-  // Scenario 3: Mixing scenario (reduces totals)
-  // DECREASED - cold air holding better than expected
-  const mixingProb = mixingRisk === "high" ? 0.20 :
+  // Scenario 3: Extended Mixing - sleet limits totals
+  // INCREASED because sleet is falling NOW
+  const mixingProb = mixingRisk === "high" ? 0.25 :
                      mixingRisk === "medium" ? 0.15 : 0.10;
 
-  // Scenario 4: Bust/Underperformance (rare at this point)
+  // Scenario 4: Bust/Underperformance
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
+
+  // Scenarios represent FINAL STORM TOTALS for Central Park
+  // As of 3:44 PM: 7.2" on ground, sleet mixing active, snow returns tonight
 
   return [
     {
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
-      mean: nwsMedian, // Full NWS median
-      stdDev: (nwsHigh - nwsLow) / 3,
-      description: `NWS forecast: ${nwsLow}-${nwsHigh}" verifies`,
+      mean: nwsMedian, // 10" - middle of 8-12" range
+      stdDev: 1.5,
+      description: `Storm total: ${nwsLow}-${nwsHigh}" as NWS expects`,
     },
     {
-      name: "High-End (All Snow)",
+      name: "High-End (Brief Mixing)",
       probability: highEndProb,
-      // Storm overperforms - good snow banding
-      mean: nwsHigh + 2,
-      stdDev: 2.0,
-      description: "Optimal banding, high ratios, overperformance",
+      // If mixing is shorter than expected, could hit high end
+      mean: nwsHigh + 1, // 13"
+      stdDev: 1.5,
+      description: "Mixing ends early, strong banding overnight",
     },
     {
       name: "Extended Mixing",
       probability: mixingProb,
-      // Some mixing late - reduces totals slightly
-      mean: Math.max(nwsLow - 1, 8),
-      stdDev: 1.5,
-      description: "Late mixing reduces final totals",
+      // Sleet period longer than expected - limits totals to low end
+      mean: nwsLow, // 8"
+      stdDev: 1.0,
+      description: "Prolonged sleet limits additional accumulation",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      mean: Math.max(nwsLow - 3, 6),
-      stdDev: 1.5,
-      description: "Unexpected dry slot or mixing",
+      // Unexpected issues - more sleet/ice, precip ends early
+      mean: observedSnowfall + 0.5, // ~7.7" (barely adds to current)
+      stdDev: 0.8,
+      description: "Storm underperforms, minimal additional snow",
     },
   ];
 }
@@ -276,24 +280,27 @@ export function calculatePolymarketProbabilities(
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // UPDATED: NWS upgraded forecast - now expecting 10-15" for NYC
-    nwsLow: 10,
-    nwsHigh: 15,
-    nwsMedian: 12, // Upgraded from 10" to 12" as storm performs well
+    // UPDATED 3:44 PM ET Jan 25: NWS STORM TOTAL (not remaining)
+    // NWS Winter Storm Warning + AFD: 8-12" for NYC metro
+    // This is the TOTAL expected, not additional snow
+    nwsLow: 8,
+    nwsHigh: 12,
+    nwsMedian: 10, // Middle of 8-12" range
 
-    // Mixing risk is now LOW - storm tracking colder than expected
-    // Coastal mixing threat has diminished
-    mixingRisk: "low",
+    // CRITICAL: Mixing risk is HIGH - sleet actively falling
+    // NWS confirms warm nose at 750mb causing snow->sleet transition
+    // Up to 1" sleet expected (doesn't count toward snow total)
+    mixingRisk: "high",
 
-    // Track uncertainty is low - models in good agreement
+    // Track uncertainty is low - storm tracking as expected
     trackUncertainty: "low",
 
-    // OBSERVED: Update with latest accumulation
-    // Check: weather.gov/wrh/climate?wfo=okx for official totals
-    observedSnowfall: 0.5, // Light snow overnight
+    // OBSERVED: 7.2" official Central Park measurement as of 2 PM ET
+    // Source: NWS spotter reports, ABC7, NBC, CBS confirmed
+    observedSnowfall: 7.2,
 
-    // Model spread has narrowed
-    modelSpread: 3,
+    // Model spread: GFS 9.4" vs ECMWF 13.9" = 4.5" spread
+    modelSpread: 4.5,
   };
 }
 
