@@ -93,6 +93,19 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-25 (Update 3)
+- **Live Snow Tracking**: Added real-time snow accumulation tracking for Central Park
+  - New `/api/live-snow` endpoint fetches from NWS api.weather.gov
+  - Station: KNYC (Central Park) - same as resolution source
+  - Shows official storm accumulation from NWS Daily Climate Report
+  - Current conditions: temperature, wind, visibility, humidity
+  - Live "SNOWING NOW" indicator when snow is detected
+  - Auto-refreshes every 60 seconds
+  - Links to official NWS climate report for verification
+- Files created: `app/api/live-snow/route.ts`, `components/LiveSnowTracker.tsx`
+- Files modified: `components/Dashboard.tsx`
+- Deployed to Vercel
+
 ### 2026-01-25 (Update 2)
 - **Edge Display Fix**: Now shows POSITIVE edge on NO shares for BUY_NO signals
   - Previously showed negative edge (e.g., "-27%") for BUY_NO signals
