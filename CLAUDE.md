@@ -85,13 +85,63 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Model Architecture
 - Uses Gamma distribution (right-skewed, non-negative)
-- 4 scenarios: NWS Verifies (50%), High-End (15%), Extended Mixing (22%), Underperformance (13%)
-- Applies coastal correction factor for Central Park (not inland)
-- Accounts for observed snowfall
+- 4 scenarios: NWS Verifies (50%), High-End (15%), Extended Mixing (25%), Underperformance (10%)
+- **LIVE SNOW OBSERVATIONS**: Auto-fetches from NWS PNS/LSR every 5 minutes
+- Uses storm total forecast (8-12") not period-by-period API values
+- Mixing risk detection from NWS forecast text
+
+## Live Snow Observation System
+The model automatically scans for the latest official Central Park measurements:
+
+**Sources (in priority order):**
+1. NWS Public Information Statement (PNS) - official storm reports
+2. NWS Local Storm Reports (LSR) - spotter reports
+3. Estimated fallback based on known data points
+
+**Files:**
+- `lib/data/fetchers/snow-observations.ts` - Live observation fetcher
+- `lib/realtime/polling.ts` - Integrates snow data with model
+
+**How it works:**
+- Fetches from NWS every 5 minutes
+- Parses text for "CENTRAL PARK" mentions with snow amounts
+- Prioritizes official NWS observations over spotter reports
+- Falls back to time-based estimates if no data available
+- Passes live observation to model for probability calculations
 
 ---
 
 ## Changelog
+
+### 2026-01-25 (Update 7) - CRITICAL MODEL FIX + LIVE OBSERVATIONS
+- **Live Snow Observation System**
+  - Created `lib/data/fetchers/snow-observations.ts`
+  - Auto-fetches from NWS PNS and LSR every 5 minutes
+  - Parses Central Park snow amounts from NWS text products
+  - Uses official measurements when available, estimates otherwise
+  - Integrated into polling system - model always uses latest data
+- **Critical Model Fix**
+  - REMOVED hardcoded minimums (10-14") that overrode real NWS data
+  - Now uses actual NWS storm total (8-12") from Winter Storm Warning
+  - Set mixing risk to HIGH (sleet actively falling as of 3:44 PM)
+  - Updated scenario probabilities: Base 50%, High-end 15%, Mixing 25%, Bust 10%
+  - OLD: Median 12.6", P(>10")=80% - WAY TOO HIGH
+  - NEW: Median 9.8", P(>10")=46.5% - REALISTIC
+- **Expert Analysis**
+  - Launched 5 research agents to gather real-time weather data
+  - Created two competing forecast personas (Conservative Carl vs Bullish Betty)
+  - Consensus: 8-11" final total, sleet limiting upside
+- Files changed: `lib/model/improved-model.ts`, `lib/model/index.ts`, `lib/realtime/polling.ts`, `lib/data/fetchers/snow-observations.ts`, `CLAUDE.md`
+- Deployed to Vercel
+
+### 2026-01-25 (Update 6)
+- **Distribution Statistics Fix**
+  - Added proper percentile calculation using binary search on mixture CDF
+  - Added mixture standard deviation calculation (was hardcoded at 3.5)
+  - P10/P25/P75/P90 now computed from actual gamma mixture distribution
+  - Updated manual market prices to current values
+- Files changed: `lib/model/improved-model.ts`, `lib/model/index.ts`, `lib/markets/manual-prices.ts`
+- Deployed to Vercel
 
 ### 2026-01-25 (Update 5)
 - **Model Rebuild - Storm in Progress**

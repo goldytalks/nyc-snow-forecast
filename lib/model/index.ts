@@ -20,6 +20,7 @@ import {
   type ImprovedScenario,
 } from "./improved-model";
 import type { UnifiedForecastData } from "../data/fetchers";
+import { getLatestCentralParkSnow, formatObservation } from "../data/fetchers/snow-observations";
 
 // Flag to use improved model
 const USE_IMPROVED_MODEL = true;
@@ -89,11 +90,16 @@ function convertToScenarioInput(data: UnifiedForecastData): ParsedForecastData {
 
 /**
  * Run the full forecast model with unified NWS data
+ * @param data - NWS forecast data
+ * @param observedSnow - Latest observed snowfall (auto-fetched if not provided)
  */
-export function runForecastModelWithData(data: UnifiedForecastData): ForecastOutput {
+export function runForecastModelWithData(
+  data: UnifiedForecastData,
+  observedSnow?: number
+): ForecastOutput {
   if (USE_IMPROVED_MODEL) {
     // Use improved model but incorporate NWS data
-    return runForecastModelImprovedWithData(data);
+    return runForecastModelImprovedWithData(data, observedSnow);
   }
 
   const parsedData = convertToScenarioInput(data);
@@ -110,17 +116,17 @@ export function runForecastModelWithData(data: UnifiedForecastData): ForecastOut
  *
  * Resolution source: weather.gov/wrh/climate?wfo=okx (NY CITY CENTRAL PARK)
  */
-function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOutput {
-  // UPDATED 3:44 PM ET Jan 25: Use STORM TOTAL from NWS Winter Storm Warning
+function runForecastModelImprovedWithData(
+  data: UnifiedForecastData,
+  observedSnow?: number
+): ForecastOutput {
+  // UPDATED: Use STORM TOTAL from NWS Winter Storm Warning
   // The API returns period-by-period forecasts which don't represent storm totals
   // NWS Winter Storm Warning says 8-12" for NYC metro (confirmed by AFD)
 
-  // OBSERVED: Central Park official + estimated additional
-  // 7.2" official at 1:00 PM ET (NWS PNS)
-  // +1.3" estimated 1-3 PM before sleet transition
-  // = ~8.5" estimated as of 3:45 PM ET
-  // UPDATE THIS AS NEW MEASUREMENTS COME IN
-  const observedSnowfall = 8.5;
+  // OBSERVED: Auto-fetched from NWS PNS/LSR or estimated
+  // Uses the latest available measurement from snow-observations.ts
+  const observedSnowfall = observedSnow ?? 8.5; // Fallback to estimate if not provided
 
   // NWS STORM TOTAL forecast (from Winter Storm Warning, not period sums)
   // Source: NWS AFD 3:42 PM ET - "9-12 inches are forecast for the NYC metro area"
@@ -207,7 +213,7 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     },
     keyUncertainties: [
       `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for Central Park`,
-      `Observed: ~${conditions.observedSnowfall}" estimated (7.2" official @ 1PM + additional)`,
+      `Observed: ${conditions.observedSnowfall}" (live from NWS reports)`,
       `ACTIVE SLEET MIXING - warm nose at 750mb limiting totals`,
       `Snow returns after 10 PM but at lighter rates`,
     ],

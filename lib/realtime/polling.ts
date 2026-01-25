@@ -5,6 +5,12 @@
 import { fetchAllNWSData, type UnifiedForecastData } from "../data/fetchers";
 import { dataStore } from "../data/cache/data-store";
 import { runForecastModelWithData, type ForecastOutput } from "../model";
+import { getLatestCentralParkSnow, type CentralParkSnowData } from "../data/fetchers/snow-observations";
+
+// Cache for snow observations
+let cachedSnowData: CentralParkSnowData | null = null;
+let snowDataTimestamp: number = 0;
+const SNOW_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 type UpdateCallback = (forecast: ForecastOutput) => void;
 
@@ -51,6 +57,38 @@ class PollingManager {
   }
 
   /**
+   * Fetch latest snow observations
+   */
+  async fetchSnowObservations(): Promise<CentralParkSnowData> {
+    const now = Date.now();
+
+    // Return cached if fresh
+    if (cachedSnowData && (now - snowDataTimestamp) < SNOW_CACHE_TTL) {
+      return cachedSnowData;
+    }
+
+    // Fetch fresh data
+    try {
+      console.log(`[${new Date().toISOString()}] Fetching snow observations...`);
+      cachedSnowData = await getLatestCentralParkSnow();
+      snowDataTimestamp = now;
+      console.log(`[${new Date().toISOString()}] Snow observation: ${cachedSnowData.observed}" (${cachedSnowData.source})`);
+      return cachedSnowData;
+    } catch (error) {
+      console.error("Failed to fetch snow observations:", error);
+      // Return estimate on error
+      return {
+        observed: 8.5,
+        observedTime: new Date().toISOString(),
+        source: "ESTIMATED",
+        isOfficial: false,
+        lastChecked: new Date().toISOString(),
+        allReports: [],
+      };
+    }
+  }
+
+  /**
    * Fetch new data and update forecast
    */
   async fetchAndUpdate(): Promise<ForecastOutput | null> {
@@ -65,15 +103,19 @@ class PollingManager {
     try {
       console.log(`[${new Date().toISOString()}] Fetching NWS data...`);
 
-      // Fetch all NWS data
-      const nwsData = await fetchAllNWSData();
+      // Fetch all data in parallel
+      const [nwsData, snowData] = await Promise.all([
+        fetchAllNWSData(),
+        this.fetchSnowObservations(),
+      ]);
+
       dataStore.setForecastData(nwsData);
 
-      // Run the model with new data
-      const forecast = runForecastModelWithData(nwsData);
+      // Run the model with new data and snow observations
+      const forecast = runForecastModelWithData(nwsData, snowData.observed);
 
       console.log(
-        `[${new Date().toISOString()}] Updated forecast: median=${forecast.distribution.median}"`
+        `[${new Date().toISOString()}] Updated forecast: median=${forecast.distribution.median}" (observed: ${snowData.observed}")`
       );
 
       // Notify subscribers
@@ -163,7 +205,9 @@ export async function getCurrentForecast(): Promise<ForecastOutput> {
   const cached = pollingManager.getCachedData();
 
   if (cached) {
-    return runForecastModelWithData(cached);
+    // Also fetch latest snow observations
+    const snowData = await pollingManager.fetchSnowObservations();
+    return runForecastModelWithData(cached, snowData.observed);
   }
 
   // No cache, fetch fresh
@@ -176,4 +220,11 @@ export async function getCurrentForecast(): Promise<ForecastOutput> {
   // Fallback to default model if fetch fails
   const { runForecastModel } = await import("../model");
   return runForecastModel();
+}
+
+/**
+ * Get current snow observation data
+ */
+export async function getCurrentSnowObservation(): Promise<CentralParkSnowData> {
+  return pollingManager.fetchSnowObservations();
 }

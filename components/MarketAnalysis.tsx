@@ -769,15 +769,15 @@ function KalshiMarketRow({
           {edge ? formatProb(edge.modelProb) : "—"}
         </div>
       </td>
-      {/* Edge - always positive for recommended side */}
+      {/* Edge - shows + for positive, - for negative */}
       <td className="py-3 px-2 text-right">
         <div className="text-[10px] text-muted-foreground">edge</div>
         <span
           className={`font-mono text-sm font-semibold ${
-            hasEdge ? "text-emerald-400" : "text-muted-foreground"
+            edgePct > 0 ? "text-emerald-400" : edgePct < 0 ? "text-red-400" : "text-muted-foreground"
           }`}
         >
-          {hasEdge ? "+" : ""}{edgePct.toFixed(1)}%
+          {edgePct > 0 ? "+" : ""}{edgePct.toFixed(1)}%
         </span>
       </td>
       {/* Signal */}
@@ -937,8 +937,8 @@ function OpportunityCard({ edge, rank }: { edge: EdgeAnalysis; rank: number }) {
         </div>
       </div>
       <div className="text-right">
-        <div className="font-mono font-bold text-lg text-emerald-400">
-          +{getEdgePct(edge).toFixed(1)}%
+        <div className={`font-mono font-bold text-lg ${getEdgePct(edge) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+          {getEdgePct(edge) >= 0 ? "+" : ""}{getEdgePct(edge).toFixed(1)}%
         </div>
         <div className="text-xs text-muted-foreground">
           Kelly: {getKellyPct(edge).toFixed(1)}%
