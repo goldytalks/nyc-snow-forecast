@@ -93,6 +93,16 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-25 (Update 2)
+- **Edge Display Fix**: Now shows POSITIVE edge on NO shares for BUY_NO signals
+  - Previously showed negative edge (e.g., "-27%") for BUY_NO signals
+  - Now shows positive edge on the recommended side (e.g., "+27%" for NO)
+  - Added "NO model" label to indicate when displaying NO side probability
+  - Updated both Kalshi and Polymarket table rows
+  - OpportunityCard now shows YES/NO badge with always-positive edge
+- Files changed: `components/MarketAnalysis.tsx`, `lib/markets/manual-prices.ts`
+- Deployed to Vercel
+
 ### 2026-01-25
 - **Fixed Chatbot**: Now works WITHOUT any API key
   - Added intelligent rule-based response system as fallback
