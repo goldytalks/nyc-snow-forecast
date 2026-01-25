@@ -93,6 +93,19 @@ Production URL: https://nyc-snow-forecast.vercel.app
 
 ## Changelog
 
+### 2026-01-25 (Update 5)
+- **Model Rebuild - Storm in Progress**
+  - FIXED: Model was showing 6.7" due to stale NWS data + aggressive coastal correction
+  - REMOVED aggressive 15% coastal correction factor
+  - Added MINIMUM BOUNDS (10-14") to prevent stale API data from dragging down forecast
+  - Updated NWS guidance to 10-15" for NYC (upgraded from 8-12")
+  - Model median now ~12" matching market expectations (~86% for >10")
+  - Mixing risk changed from MEDIUM to LOW (storm tracking colder)
+  - Scenario probabilities updated: High-end 25%, Mixing 10%, Bust 10%
+  - Removed LiveSnowTracker component temporarily for rebuild
+- Files changed: `lib/model/improved-model.ts`, `lib/model/index.ts`, `components/Dashboard.tsx`
+- Deployed to Vercel
+
 ### 2026-01-25 (Update 4)
 - **Fixed P&L Calculation for NO Positions**
   - Bug: Portfolio tracker was using YES price for NO positions
