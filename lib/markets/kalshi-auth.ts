@@ -332,4 +332,51 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
   }
 }
 
+/**
+ * Get user's portfolio balance
+ */
+export async function getKalshiBalance(): Promise<{
+  balance: number;
+  portfolioValue: number;
+  availableBalance: number;
+  authStatus: { authenticated: boolean; error?: string };
+}> {
+  try {
+    const apiKeyId = process.env.KALSHI_API_KEY_ID;
+    const privateKey = process.env.KALSHI_PRIVATE_KEY;
+
+    if (!apiKeyId || !privateKey) {
+      return {
+        balance: 0,
+        portfolioValue: 0,
+        availableBalance: 0,
+        authStatus: { authenticated: false, error: "API credentials not configured" },
+      };
+    }
+
+    const data = await authenticatedRequest<{
+      balance: number;
+      payout: number;
+    }>("GET", "/portfolio/balance");
+
+    // Kalshi returns balance in cents
+    return {
+      balance: (data.balance || 0) / 100,
+      portfolioValue: (data.payout || 0) / 100,
+      availableBalance: (data.balance || 0) / 100,
+      authStatus: { authenticated: true },
+    };
+  } catch (error: any) {
+    const errorMsg = error?.message || String(error);
+    console.error("[Kalshi Auth] Failed to fetch balance:", errorMsg);
+
+    return {
+      balance: 0,
+      portfolioValue: 0,
+      availableBalance: 0,
+      authStatus: { authenticated: false, error: errorMsg },
+    };
+  }
+}
+
 export type { KalshiPosition, KalshiOrderbook, KalshiMarketDetails };

@@ -19,6 +19,7 @@ import {
 import { getCurrentForecast } from "@/lib/realtime/polling";
 import {
   getNYCSnowstormMarketsWithDetails,
+  getKalshiBalance,
   type KalshiMarketDetails,
   type KalshiPosition,
   type KalshiOrderbook,
@@ -151,7 +152,7 @@ export async function GET() {
       modelProbabilities = getModelProbabilities();
     }
 
-    // Fetch detailed Kalshi data (including positions and orderbooks)
+    // Fetch detailed Kalshi data (including positions, orderbooks, and balance)
     let kalshiDetails: {
       markets: KalshiMarketDetails[];
       positions: KalshiPosition[];
@@ -159,8 +160,26 @@ export async function GET() {
       authStatus?: { authenticated: boolean; error?: string };
     } = { markets: [], positions: [], orderbooks: {}, authStatus: { authenticated: false } };
 
+    let kalshiBalance: {
+      balance: number;
+      portfolioValue: number;
+      availableBalance: number;
+      authStatus: { authenticated: boolean; error?: string };
+    } = {
+      balance: 0,
+      portfolioValue: 0,
+      availableBalance: 0,
+      authStatus: { authenticated: false, error: "Not fetched" },
+    };
+
     try {
-      kalshiDetails = await getNYCSnowstormMarketsWithDetails();
+      // Fetch markets/positions and balance in parallel
+      const [details, balance] = await Promise.all([
+        getNYCSnowstormMarketsWithDetails(),
+        getKalshiBalance(),
+      ]);
+      kalshiDetails = details;
+      kalshiBalance = balance;
     } catch (error) {
       console.error("[API] Failed to fetch Kalshi details:", error);
     }
@@ -243,8 +262,9 @@ export async function GET() {
       polymarketBucketProbabilities,
       dataSource: usedManualPrices ? "manual" : "live",
 
-      // Kalshi data with P&L calculation
+      // Kalshi data with P&L calculation and bet sizing
       kalshi: (() => {
+        const availableBalance = kalshiBalance.availableBalance;
         // Calculate unrealized P&L for each position based on current market prices
         const positionsWithPnL = kalshiDetails.positions.map((pos) => {
           const market = formattedKalshiMarkets.find((m) => m.ticker === pos.ticker);
@@ -299,6 +319,49 @@ export async function GET() {
           orderbooks: kalshiDetails.orderbooks,
           marketsFound: formattedKalshiMarkets.length,
           authStatus: kalshiDetails.authStatus || { authenticated: false },
+          // Balance info
+          balance: {
+            available: availableBalance,
+            portfolioValue: kalshiBalance.portfolioValue,
+            total: kalshiBalance.balance,
+          },
+          // Kelly-based bet sizing recommendations
+          betSizing: edges
+            .filter((e: any) => e.direction !== "NO_EDGE" && e.source === "kalshi")
+            .map((e: any) => {
+              const modelProb = e.direction === "BUY_YES" ? e.modelProbYes : (1 - e.modelProbYes);
+              const marketProb = e.direction === "BUY_YES" ? e.marketProbYes : (1 - e.marketProbYes);
+              const price = marketProb;
+              const odds = price > 0 ? (1 / price) - 1 : 0;
+              const kellyFraction = odds > 0 ? Math.max(0, (odds * modelProb - (1 - modelProb)) / odds) : 0;
+              const halfKelly = kellyFraction / 2;
+              const recommendedBet = availableBalance * halfKelly;
+              const contracts = price > 0 ? Math.floor(recommendedBet / price) : 0;
+
+              // Sell target: when edge erodes to <3%
+              const entryPrice = price;
+              const sellTarget = e.direction === "BUY_YES"
+                ? Math.min(0.97, modelProb + 0.02) // Sell YES when market catches up to model - 2%
+                : Math.max(0.03, (1 - modelProb) - 0.02); // Sell NO when market catches up
+
+              return {
+                market: e.market,
+                threshold: e.threshold,
+                direction: e.direction,
+                edge: Math.round(e.edge * 1000) / 10, // percentage
+                modelProb: Math.round(modelProb * 1000) / 10,
+                marketProb: Math.round(marketProb * 1000) / 10,
+                kellyFraction: Math.round(kellyFraction * 1000) / 10,
+                halfKelly: Math.round(halfKelly * 1000) / 10,
+                recommendedBet: Math.round(recommendedBet * 100) / 100,
+                contracts,
+                entryPrice: Math.round(entryPrice * 100), // in cents
+                sellTarget: Math.round(sellTarget * 100), // in cents
+                confidence: e.confidence,
+              };
+            })
+            .filter((b: any) => b.recommendedBet > 0.5) // Only show if >$0.50 recommended
+            .sort((a: any, b: any) => b.edge - a.edge),
         };
       })(),
 
