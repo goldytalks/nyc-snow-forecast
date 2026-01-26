@@ -3,9 +3,9 @@
 import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, TrendingUp, TrendingDown, Zap } from "lucide-react";
+import { Activity, Zap, Wallet, TrendingUp, TrendingDown } from "lucide-react";
 
-interface MarketPrice {
+interface KalshiPrice {
   ticker: string;
   threshold: number;
   yes_bid: number;
@@ -13,106 +13,141 @@ interface MarketPrice {
   no_bid: number;
   no_ask: number;
   last_price: number;
-  volume_24h: number;
+}
+
+interface PolymarketPrice {
+  id: string;
+  question: string;
+  range: string;
+  yes_price: number;
+  no_price: number;
+}
+
+interface PolymarketPosition {
+  conditionId: string;
+  outcomeIndex: number;
+  size: number;
+  avgPrice: number;
+  currentPrice: number;
+  pnl: number;
+  pnlPercent: number;
+  range: string;
+  isYes: boolean;
+}
+
+interface Position {
+  ticker: string;
+  position: number;
+  avgPrice: number;
+  exposure: number;
 }
 
 interface StreamData {
   type: string;
   timestamp: string;
-  prices: MarketPrice[];
-  balance: { available: number; payout: number } | null;
-  positions: Array<{
-    ticker: string;
-    position: number;
-    avgPrice: number;
-    exposure: number;
-  }>;
+  kalshi: {
+    prices: KalshiPrice[];
+    positions: Position[];
+  };
+  polymarket: {
+    prices: PolymarketPrice[];
+    positions?: PolymarketPosition[];
+  };
+  balance: { available: number; portfolioValue: number } | null;
   authWorking: boolean;
 }
 
 export function LivePrices() {
-  const [prices, setPrices] = useState<MarketPrice[]>([]);
+  const [kalshiPrices, setKalshiPrices] = useState<KalshiPrice[]>([]);
+  const [polymarketPrices, setPolymarketPrices] = useState<PolymarketPrice[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [polyPositions, setPolyPositions] = useState<PolymarketPosition[]>([]);
+  const [balance, setBalance] = useState<{ available: number; portfolioValue: number } | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [connected, setConnected] = useState(false);
-  const [positions, setPositions] = useState<any[]>([]);
-  const [balance, setBalance] = useState<{ available: number; payout: number } | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const prevPricesRef = useRef<Map<string, number>>(new Map());
+  const [authWorking, setAuthWorking] = useState(false);
+  const prevKalshiRef = useRef<Map<number, number>>(new Map());
+  const prevPolyRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    // Connect to SSE stream
     const eventSource = new EventSource("/api/kalshi-stream");
-    eventSourceRef.current = eventSource;
 
-    eventSource.onopen = () => {
-      setConnected(true);
-    };
+    eventSource.onopen = () => setConnected(true);
 
     eventSource.onmessage = (event) => {
       try {
         const data: StreamData = JSON.parse(event.data);
 
-        if (data.prices && data.prices.length > 0) {
-          setPrices(data.prices);
-          setLastUpdate(new Date(data.timestamp));
+        if (data.kalshi?.prices) {
+          setKalshiPrices(data.kalshi.prices);
         }
-
+        if (data.kalshi?.positions) {
+          setPositions(data.kalshi.positions);
+        }
+        if (data.polymarket?.prices) {
+          setPolymarketPrices(data.polymarket.prices);
+        }
+        if (data.polymarket?.positions) {
+          setPolyPositions(data.polymarket.positions);
+        }
         if (data.balance) {
           setBalance(data.balance);
         }
-
-        if (data.positions) {
-          setPositions(data.positions);
+        if (data.authWorking !== undefined) {
+          setAuthWorking(data.authWorking);
+        }
+        if (data.timestamp) {
+          setLastUpdate(new Date(data.timestamp));
         }
       } catch (e) {
-        console.error("Failed to parse SSE data:", e);
+        console.error("Parse error:", e);
       }
     };
 
     eventSource.onerror = () => {
       setConnected(false);
-      // Reconnect after 3 seconds
-      setTimeout(() => {
-        eventSource.close();
-        // Will reconnect on next render
-      }, 3000);
+      setTimeout(() => eventSource.close(), 3000);
     };
 
-    return () => {
-      eventSource.close();
-    };
+    return () => eventSource.close();
   }, []);
 
-  // Track price changes for animation
-  const getPriceChange = (ticker: string, currentPrice: number): "up" | "down" | "same" => {
-    const prevPrice = prevPricesRef.current.get(ticker);
-    if (prevPrice === undefined) {
-      prevPricesRef.current.set(ticker, currentPrice);
-      return "same";
-    }
-    if (currentPrice > prevPrice) {
-      prevPricesRef.current.set(ticker, currentPrice);
-      return "up";
-    }
-    if (currentPrice < prevPrice) {
-      prevPricesRef.current.set(ticker, currentPrice);
-      return "down";
-    }
+  const getKalshiChange = (threshold: number, price: number): "up" | "down" | "same" => {
+    const prev = prevKalshiRef.current.get(threshold);
+    prevKalshiRef.current.set(threshold, price);
+    if (prev === undefined) return "same";
+    if (price > prev) return "up";
+    if (price < prev) return "down";
     return "same";
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+  const getPolyChange = (range: string, price: number): "up" | "down" | "same" => {
+    const prev = prevPolyRef.current.get(range);
+    prevPolyRef.current.set(range, price);
+    if (prev === undefined) return "same";
+    if (price > prev) return "up";
+    if (price < prev) return "down";
+    return "same";
   };
 
-  // Only show active markets (not bonded at 99)
-  const activeMarkets = prices.filter(
-    (p) => p.yes_bid < 95 && p.threshold >= 8
-  );
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" });
+
+  // Filter to show only active Kalshi markets (not bonded)
+  const activeKalshi = kalshiPrices.filter((p) => p.yes_bid < 95 && p.threshold >= 8);
+
+  // Calculate P&L for positions
+  const calculatePnL = (pos: Position) => {
+    const market = kalshiPrices.find((p) => p.ticker === pos.ticker);
+    if (!market) return { pnl: 0, pnlPct: 0, currentPrice: 0 };
+
+    const isNo = pos.position < 0;
+    const currentPrice = isNo ? market.no_bid : market.yes_bid;
+    const pnl = (currentPrice / 100 - pos.avgPrice) * Math.abs(pos.position);
+    const pnlPct = pos.avgPrice > 0 ? ((currentPrice / 100 - pos.avgPrice) / pos.avgPrice) * 100 : 0;
+
+    return { pnl, pnlPct, currentPrice };
+  };
 
   return (
     <Card className="bg-card border-border">
@@ -120,7 +155,7 @@ export function LivePrices() {
         <CardTitle className="text-base font-medium flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Zap className={`w-5 h-5 ${connected ? "text-emerald-400" : "text-red-400"}`} />
-            Live Kalshi Prices
+            Live Market Prices
           </div>
           <div className="flex items-center gap-2">
             {connected ? (
@@ -130,151 +165,207 @@ export function LivePrices() {
               </Badge>
             ) : (
               <Badge variant="outline" className="text-red-400 border-red-500/40 text-xs">
-                DISCONNECTED
+                OFFLINE
               </Badge>
             )}
             {lastUpdate && (
-              <span className="text-xs text-muted-foreground">
-                {formatTime(lastUpdate)}
-              </span>
+              <span className="text-xs text-muted-foreground">{formatTime(lastUpdate)}</span>
             )}
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        {prices.length === 0 ? (
-          <div className="text-center text-muted-foreground py-4">
-            Connecting to Kalshi...
+
+      <CardContent className="space-y-4">
+        {/* Balance */}
+        {authWorking && balance && (
+          <div className="flex items-center justify-between p-2 rounded bg-muted/30 border border-border">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm text-muted-foreground">Available</span>
+            </div>
+            <span className="font-mono font-bold text-emerald-400">
+              ${balance.available.toFixed(2)}
+            </span>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Active Markets Table */}
-            <div className="grid grid-cols-5 gap-2 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
+        )}
+
+        {/* Kalshi Prices */}
+        {activeKalshi.length > 0 && (
+          <div>
+            <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px]">KALSHI</span>
+              Strike Prices
+            </div>
+            <div className="grid grid-cols-5 gap-1 text-[10px] font-medium text-muted-foreground pb-1 border-b border-border">
               <div>Strike</div>
               <div className="text-right">YES Bid</div>
               <div className="text-right">YES Ask</div>
               <div className="text-right">NO Bid</div>
               <div className="text-right">NO Ask</div>
             </div>
+            <div className="space-y-0.5 mt-1">
+              {activeKalshi.map((m) => {
+                const yesMid = (m.yes_bid + m.yes_ask) / 2;
+                const change = getKalshiChange(m.threshold, yesMid);
+                const pos = positions.find((p) => p.ticker === m.ticker);
 
-            {activeMarkets.map((market) => {
-              const yesMid = (market.yes_bid + market.yes_ask) / 2;
-              const change = getPriceChange(market.ticker, yesMid);
-              const position = positions.find((p) =>
-                p.ticker.includes(`-${market.threshold}`)
-              );
+                return (
+                  <div
+                    key={m.ticker}
+                    className={`grid grid-cols-5 gap-1 text-xs py-0.5 rounded transition-colors ${
+                      change === "up" ? "bg-emerald-500/10" : change === "down" ? "bg-red-500/10" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium">&gt;{m.threshold}"</span>
+                      {pos && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] px-1 py-0 ${
+                            pos.position < 0
+                              ? "text-red-400 border-red-500/40"
+                              : "text-emerald-400 border-emerald-500/40"
+                          }`}
+                        >
+                          {pos.position < 0 ? "NO" : "YES"}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-right font-mono text-emerald-400">{m.yes_bid}c</div>
+                    <div className="text-right font-mono text-emerald-400">{m.yes_ask}c</div>
+                    <div className="text-right font-mono text-red-400">{m.no_bid}c</div>
+                    <div className="text-right font-mono text-red-400">{m.no_ask}c</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Polymarket Prices */}
+        {polymarketPrices.length > 0 && (
+          <div>
+            <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px]">POLYMARKET</span>
+              Range Prices
+            </div>
+            <div className="grid grid-cols-3 gap-1 text-[10px] font-medium text-muted-foreground pb-1 border-b border-border">
+              <div>Range</div>
+              <div className="text-right">YES</div>
+              <div className="text-right">NO</div>
+            </div>
+            <div className="space-y-0.5 mt-1">
+              {polymarketPrices.map((m) => {
+                const change = getPolyChange(m.range, m.yes_price);
+                return (
+                  <div
+                    key={m.id}
+                    className={`grid grid-cols-3 gap-1 text-xs py-0.5 rounded transition-colors ${
+                      change === "up" ? "bg-emerald-500/10" : change === "down" ? "bg-red-500/10" : ""
+                    }`}
+                  >
+                    <div className="font-medium">{m.range}"</div>
+                    <div className="text-right font-mono text-emerald-400">
+                      {(m.yes_price * 100).toFixed(0)}c
+                    </div>
+                    <div className="text-right font-mono text-red-400">
+                      {(m.no_price * 100).toFixed(0)}c
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Polymarket Positions */}
+        {polyPositions.length > 0 && (
+          <div className="pt-2 border-t border-border">
+            <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded text-[10px]">POLYMARKET</span>
+              Your Positions
+            </div>
+            {polyPositions.map((pos) => (
+              <div key={pos.conditionId} className="flex items-center justify-between text-sm py-1">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      pos.isYes ? "text-emerald-400 border-emerald-500/40" : "text-red-400 border-red-500/40"
+                    }
+                  >
+                    {pos.isYes ? "YES" : "NO"}
+                  </Badge>
+                  <span>{pos.range}"</span>
+                  <span className="text-muted-foreground text-xs">
+                    ×{pos.size.toFixed(0)} @ {(pos.avgPrice * 100).toFixed(0)}c
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground text-xs">Now: {(pos.currentPrice * 100).toFixed(0)}c</span>
+                  <span
+                    className={`font-mono font-bold flex items-center gap-1 ${
+                      pos.pnl >= 0 ? "text-emerald-400" : "text-red-400"
+                    }`}
+                  >
+                    {pos.pnl >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {pos.pnl >= 0 ? "+" : ""}${pos.pnl.toFixed(2)}
+                    <span className="text-[10px]">({pos.pnlPercent >= 0 ? "+" : ""}{pos.pnlPercent.toFixed(0)}%)</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Kalshi Positions with P&L */}
+        {positions.length > 0 && (
+          <div className="pt-2 border-t border-border">
+            <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+              <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px]">KALSHI</span>
+              Your Positions
+            </div>
+            {positions.map((pos) => {
+              const { pnl, pnlPct, currentPrice } = calculatePnL(pos);
+              const threshold = pos.ticker.match(/-(\d+(?:\.\d+)?)$/)?.[1];
+              const isNo = pos.position < 0;
 
               return (
-                <div
-                  key={market.ticker}
-                  className={`grid grid-cols-5 gap-2 text-sm py-1 ${
-                    change === "up"
-                      ? "bg-emerald-500/10"
-                      : change === "down"
-                      ? "bg-red-500/10"
-                      : ""
-                  } rounded transition-colors`}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">&gt;{market.threshold}"</span>
-                    {position && (
-                      <Badge
-                        variant="outline"
-                        className={`text-xs px-1 ${
-                          position.position < 0
-                            ? "text-red-400 border-red-500/40"
-                            : "text-emerald-400 border-emerald-500/40"
-                        }`}
-                      >
-                        {position.position < 0 ? "NO" : "YES"}
-                      </Badge>
-                    )}
+                <div key={pos.ticker} className="flex items-center justify-between text-sm py-1">
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={
+                        isNo ? "text-red-400 border-red-500/40" : "text-emerald-400 border-emerald-500/40"
+                      }
+                    >
+                      {isNo ? "NO" : "YES"}
+                    </Badge>
+                    <span>&gt;{threshold}"</span>
+                    <span className="text-muted-foreground text-xs">
+                      ×{Math.abs(pos.position)} @ {(pos.avgPrice * 100).toFixed(0)}c
+                    </span>
                   </div>
-                  <div className="text-right font-mono text-emerald-400">
-                    {market.yes_bid}c
-                  </div>
-                  <div className="text-right font-mono text-emerald-400">
-                    {market.yes_ask}c
-                  </div>
-                  <div className="text-right font-mono text-red-400">
-                    {market.no_bid}c
-                  </div>
-                  <div className="text-right font-mono text-red-400">
-                    {market.no_ask}c
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs">Now: {currentPrice}c</span>
+                    <span
+                      className={`font-mono font-bold flex items-center gap-1 ${
+                        pnl >= 0 ? "text-emerald-400" : "text-red-400"
+                      }`}
+                    >
+                      {pnl >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
+                      <span className="text-[10px]">({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(0)}%)</span>
+                    </span>
                   </div>
                 </div>
               );
             })}
-
-            {/* Position P&L */}
-            {positions.length > 0 && (
-              <div className="pt-2 mt-2 border-t border-border">
-                <div className="text-xs font-medium text-muted-foreground mb-1">
-                  Your Positions
-                </div>
-                {positions.map((pos) => {
-                  const market = prices.find((p) => p.ticker === pos.ticker);
-                  if (!market) return null;
-
-                  const isNo = pos.position < 0;
-                  const currentPrice = isNo
-                    ? market.no_bid // Can sell at NO bid
-                    : market.yes_bid;
-                  const pnl = (currentPrice / 100 - pos.avgPrice) * Math.abs(pos.position);
-                  const pnlPct = ((currentPrice / 100 - pos.avgPrice) / pos.avgPrice) * 100;
-
-                  return (
-                    <div
-                      key={pos.ticker}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={
-                            isNo
-                              ? "text-red-400 border-red-500/40"
-                              : "text-emerald-400 border-emerald-500/40"
-                          }
-                        >
-                          {isNo ? "NO" : "YES"}
-                        </Badge>
-                        <span>&gt;{market.threshold}"</span>
-                        <span className="text-muted-foreground">
-                          ×{Math.abs(pos.position)} @ {(pos.avgPrice * 100).toFixed(0)}c
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">
-                          Now: {currentPrice}c
-                        </span>
-                        <span
-                          className={`font-mono font-bold ${
-                            pnl >= 0 ? "text-emerald-400" : "text-red-400"
-                          }`}
-                        >
-                          {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
-                          <span className="text-xs ml-1">
-                            ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(0)}%)
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Balance */}
-            {balance && (
-              <div className="pt-2 mt-2 border-t border-border flex justify-between text-sm">
-                <span className="text-muted-foreground">Available Balance:</span>
-                <span className="font-mono font-bold text-emerald-400">
-                  ${balance.available.toFixed(2)}
-                </span>
-              </div>
-            )}
           </div>
+        )}
+
+        {kalshiPrices.length === 0 && polymarketPrices.length === 0 && (
+          <div className="text-center text-muted-foreground py-4">Connecting...</div>
         )}
       </CardContent>
     </Card>
