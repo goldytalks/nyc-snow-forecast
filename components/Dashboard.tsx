@@ -13,6 +13,7 @@ import { MarketAnalysis } from "@/components/MarketAnalysis";
 import { DataSourcesPanel } from "@/components/DataSourcesPanel";
 import { OfficialSnowCount } from "@/components/OfficialSnowCount";
 import { PortfolioBetting } from "@/components/PortfolioBetting";
+import { LivePrices } from "@/components/LivePrices";
 import { MapPin, Snowflake, RefreshCw } from "lucide-react";
 import type { ForecastData } from "@/lib/types";
 
@@ -86,12 +87,20 @@ export function Dashboard({ initialData }: DashboardProps) {
           <MarketAnalysis strikeProbabilities={data.strikeProbabilities} />
         </div>
 
-        {/* Official Snow Count + Portfolio */}
+        {/* Live Prices + Official Snow Count */}
         <div
           className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in"
           style={{ animationDelay: "0.27s" }}
         >
+          <LivePrices />
           <OfficialSnowCount />
+        </div>
+
+        {/* Portfolio & Betting */}
+        <div
+          className="animate-fade-in"
+          style={{ animationDelay: "0.28s" }}
+        >
           <PortfolioBetting />
         </div>
 
