@@ -891,21 +891,19 @@ function PolymarketMarketRow({
 function OpportunityCard({ edge, rank }: { edge: EdgeAnalysis; rank: number }) {
   const isYes = edge.direction === "BUY_YES";
   const isNo = edge.direction === "BUY_NO";
-  // Both YES and NO opportunities are positive edges now
-  const color = "emerald";
-  const Icon = TrendingUp;
+  const edgePct = getEdgePct(edge);
+  const kellyPct = getKellyPct(edge);
+
+  // Edge should always be positive - if not, something is wrong
+  if (edgePct < 0) return null;
 
   return (
-    <div
-      className="flex items-center justify-between p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/20"
-    >
+    <div className="flex items-center justify-between p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/20">
       <div className="flex items-center gap-3">
-        <div
-          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-emerald-500/20 text-emerald-400"
-        >
+        <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-emerald-500/20 text-emerald-400">
           {rank}
         </div>
-        <Icon className="w-5 h-5 text-emerald-400" />
+        <TrendingUp className="w-5 h-5 text-emerald-400" />
         <div>
           <div className="font-medium flex items-center gap-2">
             {edge.market}
@@ -931,17 +929,16 @@ function OpportunityCard({ edge, rank }: { edge: EdgeAnalysis; rank: number }) {
             </Badge>
           </div>
           <div className="text-xs text-muted-foreground">
-            {isNo ? "NO " : ""}Model: {formatProb(edge.modelProb)} | Market:{" "}
-            {formatProb(edge.marketProb)}
+            {isNo ? "Model NO" : "Model YES"}: {formatProb(edge.modelProb)} | Market {isNo ? "NO" : "YES"}: {formatProb(edge.marketProb)}
           </div>
         </div>
       </div>
       <div className="text-right">
-        <div className={`font-mono font-bold text-lg ${getEdgePct(edge) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-          {getEdgePct(edge) >= 0 ? "+" : ""}{getEdgePct(edge).toFixed(1)}%
+        <div className="font-mono font-bold text-lg text-emerald-400">
+          +{edgePct.toFixed(1)}%
         </div>
         <div className="text-xs text-muted-foreground">
-          Kelly: {getKellyPct(edge).toFixed(1)}%
+          Kelly: {kellyPct.toFixed(1)}%
         </div>
       </div>
     </div>

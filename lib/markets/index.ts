@@ -58,13 +58,17 @@ export interface EdgeOpportunity {
   market: string;
   threshold?: number;
   range?: string;
-  modelProb: number;
-  marketProb: number;
-  edge: number;
-  direction: "BUY_YES" | "BUY_NO";
+  modelProb: number;      // Model probability for the recommended side
+  marketProb: number;     // Market probability for the recommended side
+  modelProbYes: number;   // Always the YES side model prob
+  marketProbYes: number;  // Always the YES side market prob
+  edge: number;           // Always positive for the recommended side
+  edgePct: number;        // edge * 100, always positive
+  direction: "BUY_YES" | "BUY_NO" | "NO_EDGE";
   confidence: "HIGH" | "MEDIUM" | "LOW";
   source: "kalshi" | "polymarket";
   expectedValue: number;
+  kellyPct: number;
 }
 
 /**
@@ -117,89 +121,130 @@ export async function fetchAllMarketData(): Promise<MarketData> {
 
 /**
  * Calculate edge opportunities comparing model to market
+ * Edge is ALWAYS shown as positive for the recommended side (YES or NO)
  */
 export function calculateEdgeOpportunities(
   modelProbabilities: Record<string, number>,
   marketData: MarketData
 ): EdgeOpportunity[] {
   const edges: EdgeOpportunity[] = [];
-  const EDGE_THRESHOLD = 0.05; // 5% minimum edge
+  const EDGE_THRESHOLD = 0.03; // 3% minimum edge
 
   // Process Kalshi strike markets
   for (const market of marketData.kalshi.markets) {
     if (market.direction !== "over") continue;
 
     const threshold = market.threshold.toString();
-    const modelProb = modelProbabilities[threshold];
+    const modelProbYes = modelProbabilities[threshold];
 
-    if (modelProb === undefined) continue;
+    if (modelProbYes === undefined) continue;
 
-    const marketProb = market.yesMid;
-    const edge = modelProb - marketProb;
+    const marketProbYes = market.yesMid;
+    const rawEdge = modelProbYes - marketProbYes;
 
-    if (Math.abs(edge) >= EDGE_THRESHOLD) {
-      edges.push({
-        market: `Kalshi >${market.threshold}"`,
-        threshold: market.threshold,
-        modelProb,
-        marketProb,
-        edge,
-        direction: edge > 0 ? "BUY_YES" : "BUY_NO",
-        confidence: getConfidence(edge),
-        source: "kalshi",
-        expectedValue: calculateEV(edge, marketProb),
-      });
-    }
+    // Determine direction: positive rawEdge = buy YES, negative rawEdge = buy NO
+    let direction: EdgeOpportunity["direction"] = "NO_EDGE";
+    if (rawEdge > EDGE_THRESHOLD) direction = "BUY_YES";
+    if (rawEdge < -EDGE_THRESHOLD) direction = "BUY_NO";
+
+    if (direction === "NO_EDGE") continue;
+
+    // For BUY_NO, show the NO side probabilities and positive edge
+    const modelProb = direction === "BUY_NO" ? (1 - modelProbYes) : modelProbYes;
+    const marketProb = direction === "BUY_NO" ? (1 - marketProbYes) : marketProbYes;
+    const edge = Math.abs(rawEdge); // Always positive for recommended side
+
+    // Kelly criterion calculation
+    const prob = modelProb;
+    const price = marketProb;
+    const odds = price > 0 && price < 1 ? (1 / price) - 1 : 0;
+    const kelly = odds > 0 ? Math.max(0, (odds * prob - (1 - prob)) / odds) : 0;
+
+    edges.push({
+      market: `Kalshi >${market.threshold}"`,
+      threshold: market.threshold,
+      modelProb,
+      marketProb,
+      modelProbYes,
+      marketProbYes,
+      edge,
+      edgePct: edge * 100,
+      direction,
+      confidence: getConfidence(rawEdge),
+      source: "kalshi",
+      expectedValue: calculateEV(rawEdge, marketProbYes),
+      kellyPct: Math.round(kelly * 100 * 10) / 10,
+    });
   }
 
   // Process Polymarket range markets
   for (const market of marketData.polymarket.markets) {
-    // Calculate model probability for this range
-    let modelProb: number;
+    // Calculate model probability for this range (YES side)
+    let modelProbYes: number;
 
     if (market.rangeType === "under" && market.rangeHigh !== null) {
       // P(X < rangeHigh) = 1 - P(X >= rangeHigh)
       const probOver = modelProbabilities[market.rangeHigh.toString()] || 0;
-      modelProb = 1 - probOver;
+      modelProbYes = 1 - probOver;
     } else if (market.rangeType === "over" && market.rangeLow !== null) {
       // P(X >= rangeLow)
-      modelProb = modelProbabilities[market.rangeLow.toString()] || 0;
+      modelProbYes = modelProbabilities[market.rangeLow.toString()] || 0;
     } else if (market.rangeLow !== null && market.rangeHigh !== null) {
       // P(rangeLow <= X < rangeHigh) = P(X >= rangeLow) - P(X >= rangeHigh)
       const probOverLow = modelProbabilities[market.rangeLow.toString()] || 0;
       const probOverHigh = modelProbabilities[market.rangeHigh.toString()] || 0;
-      modelProb = probOverLow - probOverHigh;
+      modelProbYes = probOverLow - probOverHigh;
     } else {
       continue;
     }
 
-    const marketProb = market.yesPrice;
-    const edge = modelProb - marketProb;
+    const marketProbYes = market.yesPrice;
+    const rawEdge = modelProbYes - marketProbYes;
 
-    if (Math.abs(edge) >= EDGE_THRESHOLD) {
-      const range =
-        market.rangeType === "under"
-          ? `<${market.rangeHigh}"`
-          : market.rangeType === "over"
-            ? `${market.rangeLow}+"`
-            : `${market.rangeLow}-${market.rangeHigh}"`;
+    // Determine direction
+    let direction: EdgeOpportunity["direction"] = "NO_EDGE";
+    if (rawEdge > EDGE_THRESHOLD) direction = "BUY_YES";
+    if (rawEdge < -EDGE_THRESHOLD) direction = "BUY_NO";
 
-      edges.push({
-        market: `Polymarket ${range}`,
-        range,
-        modelProb,
-        marketProb,
-        edge,
-        direction: edge > 0 ? "BUY_YES" : "BUY_NO",
-        confidence: getConfidence(edge),
-        source: "polymarket",
-        expectedValue: calculateEV(edge, marketProb),
-      });
-    }
+    if (direction === "NO_EDGE") continue;
+
+    // For BUY_NO, show the NO side probabilities and positive edge
+    const modelProb = direction === "BUY_NO" ? (1 - modelProbYes) : modelProbYes;
+    const marketProb = direction === "BUY_NO" ? (1 - marketProbYes) : marketProbYes;
+    const edge = Math.abs(rawEdge); // Always positive for recommended side
+
+    const range =
+      market.rangeType === "under"
+        ? `<${market.rangeHigh}"`
+        : market.rangeType === "over"
+          ? `${market.rangeLow}+"`
+          : `${market.rangeLow}-${market.rangeHigh}"`;
+
+    // Kelly criterion calculation
+    const prob = modelProb;
+    const price = marketProb;
+    const odds = price > 0 && price < 1 ? (1 / price) - 1 : 0;
+    const kelly = odds > 0 ? Math.max(0, (odds * prob - (1 - prob)) / odds) : 0;
+
+    edges.push({
+      market: `Polymarket ${range}`,
+      range,
+      modelProb,
+      marketProb,
+      modelProbYes,
+      marketProbYes,
+      edge,
+      edgePct: edge * 100,
+      direction,
+      confidence: getConfidence(rawEdge),
+      source: "polymarket",
+      expectedValue: calculateEV(rawEdge, marketProbYes),
+      kellyPct: Math.round(kelly * 100 * 10) / 10,
+    });
   }
 
-  // Sort by absolute edge descending
-  return edges.sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge));
+  // Sort by edge descending (always positive now)
+  return edges.sort((a, b) => b.edge - a.edge);
 }
 
 function getConfidence(edge: number): "HIGH" | "MEDIUM" | "LOW" {
