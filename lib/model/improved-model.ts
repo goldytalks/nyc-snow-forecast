@@ -137,39 +137,40 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
 
   // Scenarios represent FINAL STORM TOTALS for Central Park
-  // As of 3:44 PM: 7.2" on ground, sleet mixing active, snow returns tonight
+  // As of 7:30 PM: 8.8" on ground, sleet transition, snow returns tonight
+  // FLOOR is ~9.5" (current 8.8" + minimal additional)
 
   return [
     {
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
-      mean: nwsMedian, // 10" - middle of 8-12" range
-      stdDev: 1.5,
-      description: `Storm total: ${nwsLow}-${nwsHigh}" as NWS expects`,
+      mean: nwsMedian, // 11.5" expected
+      stdDev: 1.0,     // Tighter range as storm progresses
+      description: `Storm total: ${nwsLow}-${nwsHigh}" as expected`,
     },
     {
       name: "High-End (Brief Mixing)",
       probability: highEndProb,
-      // If mixing is shorter than expected, could hit high end
-      mean: nwsHigh + 1, // 13"
-      stdDev: 1.5,
-      description: "Mixing ends early, strong banding overnight",
+      // If mixing ends quickly and heavy snow bands return
+      mean: nwsHigh, // 14"
+      stdDev: 1.2,
+      description: "Brief sleet, heavy bands overnight → 13-15\"",
     },
     {
       name: "Extended Mixing",
       probability: mixingProb,
-      // Sleet period longer than expected - limits totals to low end
-      mean: nwsLow, // 8"
-      stdDev: 1.0,
-      description: "Prolonged sleet limits additional accumulation",
+      // Sleet period longer than expected - limits totals
+      mean: Math.max(nwsLow, observedSnowfall + 1.5), // ~10.3"
+      stdDev: 0.8,
+      description: "Prolonged sleet limits final total to 9-11\"",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      // Unexpected issues - more sleet/ice, precip ends early
-      mean: observedSnowfall + 0.5, // ~7.7" (barely adds to current)
-      stdDev: 0.8,
-      description: "Storm underperforms, minimal additional snow",
+      // Minimal additional snow after current accumulation
+      mean: observedSnowfall + 1.0, // ~9.8" (barely more than now)
+      stdDev: 0.5,
+      description: "Early wind-down, final 9-10\"",
     },
   ];
 }
@@ -269,40 +270,34 @@ export function calculatePolymarketProbabilities(
  * CRITICAL: Calibrated for NY CITY CENTRAL PARK
  * Resolution source: weather.gov/wrh/climate?wfo=okx (CLINYC station)
  *
- * UPDATED Jan 25: Storm is in progress and performing well.
- * NWS guidance (latest):
- * - Winter Storm Warning: 10-15 inches for NYC metro
- * - Heavy snow bands setting up over the city
- * - Current model consensus: 12-14" for Central Park
- * - Market pricing: ~86% chance of >10" (Kalshi NO at 14c)
- *
- * Storm performance so far is tracking to the higher end of guidance.
+ * UPDATED Jan 25 7:30 PM ET: Storm is in ACTIVE PROGRESS
+ * - Central Park: 8.8" officially measured (4pm report)
+ * - Sleet mixing happening NOW but snow returns tonight
+ * - Expected additional: 2-4" more before storm ends
+ * - Market pricing: 52% for 10-12", 38% for 12-14"
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // UPDATED 3:44 PM ET Jan 25: NWS STORM TOTAL (not remaining)
-    // NWS Winter Storm Warning + AFD: 8-12" for NYC metro
-    // This is the TOTAL expected, not additional snow
-    nwsLow: 8,
-    nwsHigh: 12,
-    nwsMedian: 10, // Middle of 8-12" range
+    // STORM TOTAL FORECAST (as of 7:30 PM ET)
+    // Already have 8.8" + expecting 2-4" more = 10-14" final
+    // Market is pricing 10-14" at 90% combined
+    nwsLow: 10,   // Floor given current accumulation
+    nwsHigh: 14,  // If mixing is brief, heavy snow overnight
+    nwsMedian: 11.5, // Middle of expected range
 
-    // CRITICAL: Mixing risk is HIGH - sleet actively falling
-    // NWS confirms warm nose at 750mb causing snow->sleet transition
-    // Up to 1" sleet expected (doesn't count toward snow total)
-    mixingRisk: "high",
+    // Mixing happening NOW but snow returns after 10pm
+    // Risk is MEDIUM - not as bad as initially feared
+    mixingRisk: "medium",
 
     // Track uncertainty is low - storm tracking as expected
     trackUncertainty: "low",
 
-    // OBSERVED: Central Park - UPDATE AS NEW DATA COMES IN
-    // 7.2" official at 1:00 PM ET (NWS PNS)
-    // +1.3" estimated before sleet transition
-    // = ~8.5" as of 3:45 PM ET
-    observedSnowfall: 8.5,
+    // OBSERVED: 8.8" at Central Park as of 4pm Sunday
+    // This is the FLOOR - we can't end below this
+    observedSnowfall: 8.8,
 
-    // Model spread: GFS 9.4" vs ECMWF 13.9" = 4.5" spread
-    modelSpread: 4.5,
+    // Model spread has narrowed as storm progresses
+    modelSpread: 3.0,
   };
 }
 
