@@ -161,27 +161,60 @@ export function generateScenarios(data: ParsedForecastData): Scenario[] {
 }
 
 /**
- * Default scenarios based on current NWS guidance (Jan 23, 2026)
- * Used when real-time fetch fails
+ * Default scenarios based on CURRENT CONDITIONS (Jan 25, 2026 evening)
  *
- * Current NWS AFD says: "widespread 8 to 14 inches" with
- * "localized amounts approaching a foot and a half" (18")
+ * LIVE DATA: Central Park at 8.8" as of 4pm Sunday
+ * Storm continues through tonight, mixing (sleet) expected Sunday night
+ *
+ * Key factors:
+ * - Already have 8.8" - this is the FLOOR
+ * - 2-4 hours more snow before mixing
+ * - Mixing will cut accumulation rate significantly
  */
 export function getDefaultScenarios(): Scenario[] {
-  return generateScenarios({
-    nwsRange: { low: 8, high: 14 },
-    localizedMax: 18,
-    mixingMentioned: true,
-    mixingTiming: "Sunday evening",
-    slr: { low: 10, high: 18 },
-    qpf: 1.0,
-    modelData: {
-      gfs: 10,
-      ecmwf: 14,
-      nam: 12,
+  // HARDCODED scenarios based on current storm state
+  // Current: 8.8" | Expected additional: 2-5" | Mixing imminent
+
+  const currentAccum = 8.8;
+
+  return [
+    {
+      name: "NWS Forecast Verifies",
+      probability: 0.50,
+      snowfallMean: 11.5,        // 8.8 + 2.7" more before mixing
+      snowfallStdDev: 1.2,
+      description: "Mixing arrives on time, final 10-13\"",
+      color: "#3b82f6",
+      triggerConditions: ["Mixing by 9pm", "Normal progression"],
     },
-    confidenceLevel: "medium",
-  });
+    {
+      name: "High-End (Brief Mixing)",
+      probability: 0.15,
+      snowfallMean: 14,          // 8.8 + 5.2" if mixing delayed
+      snowfallStdDev: 1.5,
+      description: "Mixing delayed 2+ hours, could hit 14-16\"",
+      color: "#10b981",
+      triggerConditions: ["Mixing delayed", "Continued heavy snow rates"],
+    },
+    {
+      name: "Extended Mixing",
+      probability: 0.25,
+      snowfallMean: 10.5,        // 8.8 + 1.7" before early mixing
+      snowfallStdDev: 1.0,
+      description: "Early transition to sleet, final 9-12\"",
+      color: "#f59e0b",
+      triggerConditions: ["Early mixing", "1-2\" sleet"],
+    },
+    {
+      name: "Significant Underperformance",
+      probability: 0.10,
+      snowfallMean: 9.5,         // 8.8 + 0.7" (mixing starts NOW)
+      snowfallStdDev: 0.5,
+      description: "Immediate mixing, barely adds to current total",
+      color: "#ef4444",
+      triggerConditions: ["Immediate sleet", "Warm nose arrives early"],
+    },
+  ];
 }
 
 // Export default scenarios for backward compatibility
