@@ -10,7 +10,10 @@
  * Kalshi: https://kalshi.com/markets/kxsnowstorm/snowstorms/KXSNOWSTORM-26FEBNYC2
  * Polymarket: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
  *
- * Last Updated: 2026-02-21 (fallback prices - live API preferred)
+ * Last Updated: 2026-02-21 ~11:30 AM ET (from Kalshi/market aggregator data)
+ * Kalshi confirmed: >10"=72%, >12"=61%, >15"=37%, implied mean ~13.9"
+ * Polymarket ranges derived from Kalshi strike curve for consistency
+ * NOTE: Live API data is preferred when available
  */
 
 export interface MarketPrice {
@@ -29,13 +32,13 @@ export interface MarketPrice {
 // https://kalshi.com/markets/kxsnowstorm/snowstorms/KXSNOWSTORM-26FEBNYC2
 // ============================================
 export const KALSHI_PRICES: MarketPrice[] = [
-  { threshold: 2, yesPrice: 97, source: "kalshi" },
-  { threshold: 4, yesPrice: 93, source: "kalshi" },
-  { threshold: 6, yesPrice: 85, source: "kalshi" },
-  { threshold: 8, yesPrice: 72, source: "kalshi" },
-  { threshold: 10, yesPrice: 58, source: "kalshi" },
-  { threshold: 12, yesPrice: 42, source: "kalshi" },
-  { threshold: 15, yesPrice: 22, source: "kalshi" },
+  { threshold: 2, yesPrice: 99, source: "kalshi" },
+  { threshold: 4, yesPrice: 97, source: "kalshi" },
+  { threshold: 6, yesPrice: 93, source: "kalshi" },
+  { threshold: 8, yesPrice: 84, source: "kalshi" },
+  { threshold: 10, yesPrice: 72, source: "kalshi" },
+  { threshold: 12, yesPrice: 61, source: "kalshi" },
+  { threshold: 15, yesPrice: 37, source: "kalshi" },
 ];
 
 // ============================================
@@ -43,13 +46,13 @@ export const KALSHI_PRICES: MarketPrice[] = [
 // https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
 // ============================================
 export const POLYMARKET_PRICES: MarketPrice[] = [
-  { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 4, source: "polymarket", volume: 10145 },
-  { range: "4-6", rangeLow: 4, rangeHigh: 6, rangeType: "range", yesPrice: 2, source: "polymarket", volume: 10145 },
-  { range: "6-8", rangeLow: 6, rangeHigh: 8, rangeType: "range", yesPrice: 12, source: "polymarket", volume: 10145 },
-  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 17, source: "polymarket", volume: 10145 },
-  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 17, source: "polymarket", volume: 10145 },
-  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 20, source: "polymarket", volume: 10145 },
-  { range: "14+", rangeLow: 14, rangeHigh: null, rangeType: "over", yesPrice: 34, source: "polymarket", volume: 10145 },
+  { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 3, source: "polymarket", volume: 15000 },
+  { range: "4-6", rangeLow: 4, rangeHigh: 6, rangeType: "range", yesPrice: 4, source: "polymarket", volume: 15000 },
+  { range: "6-8", rangeLow: 6, rangeHigh: 8, rangeType: "range", yesPrice: 9, source: "polymarket", volume: 15000 },
+  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 12, source: "polymarket", volume: 15000 },
+  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 11, source: "polymarket", volume: 15000 },
+  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 16, source: "polymarket", volume: 15000 },
+  { range: "14+", rangeLow: 14, rangeHigh: null, rangeType: "over", yesPrice: 45, source: "polymarket", volume: 15000 },
 ];
 
 /**

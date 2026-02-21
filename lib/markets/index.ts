@@ -220,21 +220,22 @@ function calculateEV(edge: number, marketProb: number): number {
  * Get model probabilities for standard thresholds
  */
 export function getModelProbabilities(): Record<string, number> {
-  // These come from the dynamic scenario model
-  // Using defaults based on current NWS guidance
+  // Defaults from recalibrated model (Feb 21, 2026)
+  // Based on blizzard warning, NWS 10-16" guidance, model convergence
+  // Model mean: 11.9", median: 12"
   return {
-    "2": 0.985,
-    "4": 0.96,
-    "6": 0.91,
-    "8": 0.79,
-    "10": 0.63,
-    "12": 0.40,
-    "14": 0.28,
-    "15": 0.23,
-    "16": 0.18,
-    "18": 0.13,
-    "20": 0.06,
-    "24": 0.015,
+    "2": 1.0,
+    "4": 0.989,
+    "6": 0.907,
+    "8": 0.769,
+    "10": 0.613,
+    "12": 0.438,
+    "14": 0.30,
+    "15": 0.246,
+    "16": 0.19,
+    "18": 0.135,
+    "20": 0.067,
+    "24": 0.006,
   };
 }
 

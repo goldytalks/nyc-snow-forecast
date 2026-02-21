@@ -127,7 +127,7 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   const coastalCorrectionFactor = 0.85; // 15% reduction for coastal vs inland
   const adjustedHigh = Math.min(rawHigh, rawLow + (rawHigh - rawLow) * coastalCorrectionFactor);
 
-  // Central Park observed snowfall as of Jan 24 (from climate report)
+  // Central Park observed snowfall as of Feb 21 (from climate report)
   const observedSnowfall = 0.3;
 
   const conditions = {

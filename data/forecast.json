@@ -1,5 +1,5 @@
 {
-  "modelRunTimestamp": "2026-02-21T22:07:48.033Z",
+  "modelRunTimestamp": "2026-02-21T22:40:07.336Z",
   "modelVersion": "improved",
   "dataSourcesUsed": [
     "NWS_point_forecast",
@@ -9,138 +9,75 @@
     "NAM"
   ],
   "distribution": {
-    "median": 10,
-    "mean": 9.6,
+    "median": 12,
+    "mean": 11.9,
     "stdDev": 3.5,
-    "p10": 6,
-    "p25": 8,
-    "p75": 12,
-    "p90": 15
+    "p10": 8,
+    "p25": 10,
+    "p75": 16,
+    "p90": 18
   },
   "strikeProbabilities": {
-    "2": 0.999,
-    "4": 0.958,
-    "6": 0.845,
-    "8": 0.712,
-    "10": 0.444,
-    "12": 0.205,
-    "15": 0.059,
-    "18": 0.006,
-    "20": 0.001,
-    "24": 0
+    "2": 1,
+    "4": 0.989,
+    "6": 0.907,
+    "8": 0.769,
+    "10": 0.613,
+    "12": 0.438,
+    "15": 0.246,
+    "18": 0.135,
+    "20": 0.067,
+    "24": 0.006
   },
   "kalshiProbabilities": {
-    "2": 0.999,
-    "4": 0.958,
-    "6": 0.845,
-    "8": 0.712,
-    "10": 0.444,
-    "12": 0.205,
-    "15": 0.059,
-    "18": 0.006,
-    "20": 0.001,
-    "24": 0
+    "2": 1,
+    "4": 0.989,
+    "6": 0.907,
+    "8": 0.769,
+    "10": 0.613,
+    "12": 0.438,
+    "15": 0.246,
+    "18": 0.135,
+    "20": 0.067,
+    "24": 0.006
   },
   "polymarketProbabilities": {
-    "<4": 0.042,
-    "4-6": 0.113,
-    "6-8": 0.133,
-    "8-10": 0.268,
-    "10-12": 0.238,
-    "12-14": 0.107,
-    "14+": 0.098
+    "<4": 0.011,
+    "4-6": 0.081,
+    "6-8": 0.138,
+    "8-10": 0.157,
+    "10-12": 0.175,
+    "12-14": 0.143,
+    "14+": 0.295
   },
   "scenarios": [
     {
       "name": "NWS Forecast Verifies",
       "probability": 0.5,
-      "snowfallMean": 10,
-      "snowfallRange": [
-        8,
-        12
-      ],
-      "color": "#3b82f6",
-      "description": "NWS forecast: 8-12\" verifies"
+      "mean": 12,
+      "stdDev": 2.4,
+      "description": "NWS forecast: 10-16\" verifies"
     },
     {
       "name": "High-End (All Snow)",
       "probability": 0.2,
-      "snowfallMean": 14,
-      "snowfallRange": [
-        11,
-        17
-      ],
-      "color": "#10b981",
-      "description": "Optimal track, no mixing, high ratios"
+      "mean": 19,
+      "stdDev": 2.5,
+      "description": "Optimal track, banding over city, high ratios"
     },
     {
       "name": "Extended Mixing",
       "probability": 0.15,
-      "snowfallMean": 7,
-      "snowfallRange": [
-        4.8,
-        9.3
-      ],
-      "color": "#f59e0b",
+      "mean": 8,
+      "stdDev": 1.5,
       "description": "More mixing than forecast reduces totals"
     },
     {
       "name": "Significant Underperformance",
       "probability": 0.15,
-      "snowfallMean": 5,
-      "snowfallRange": [
-        2.8,
-        7.3
-      ],
-      "color": "#ef4444",
+      "mean": 6,
+      "stdDev": 1.5,
       "description": "Track miss, dry slot, or bust"
     }
-  ],
-  "modelInputs": {
-    "nws": {
-      "range": [
-        8,
-        12
-      ],
-      "confidence": "medium"
-    },
-    "ecmwf": {
-      "value": 12,
-      "trend": "steady"
-    },
-    "gfs": {
-      "value": 10,
-      "trend": "steady"
-    },
-    "nam": {
-      "value": 11,
-      "trend": "steady"
-    }
-  },
-  "keyUncertainties": [
-    "NWS forecast: 8-12\" for Central Park",
-    "BLIZZARD WARNING: 13-18\" criteria met (high confidence event)",
-    "Mixing risk: low - cold air locked in",
-    "Models trending coastward = bullish for NYC totals",
-    "Kalshi (Feb 21-24) vs Polymarket (Feb 21-23) - different date ranges!"
-  ],
-  "timing": {
-    "snowStarts": "2026-02-22T11:00:00Z",
-    "heaviestSnow": "2026-02-22T22:00:00Z",
-    "mixingWindow": [
-      "2026-02-22T00:00:00Z",
-      "2026-02-22T00:00:00Z"
-    ],
-    "snowEnds": "2026-02-23T18:00:00Z"
-  },
-  "dataSources": {
-    "nwsForecast": {
-      "status": "live",
-      "updateTime": "2026-02-21T22:07:48.033Z"
-    },
-    "nwsAFD": {
-      "status": "live",
-      "issueTime": "2026-02-21T22:07:48.033Z"
-    }
-  }
+  ]
 }

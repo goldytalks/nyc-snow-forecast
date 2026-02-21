@@ -1,7 +1,7 @@
 # NYC Snowfall Forecast Dashboard
 
 ## Project Overview
-Probabilistic model + dashboard to predict Central Park snowfall for Jan 24-26, 2026.
+Probabilistic model + dashboard to predict Central Park snowfall for Feb 21-24, 2026.
 Dashboard is dark-themed, modern, and deployed to Vercel.
 
 **Production URL:** https://nyc-snow-forecast.vercel.app

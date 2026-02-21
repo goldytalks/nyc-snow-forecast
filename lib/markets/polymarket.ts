@@ -188,7 +188,7 @@ export async function getCLOBPrices(tokenIds: string[]): Promise<CLOBPrice[]> {
  * Specific event: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
  */
 export async function fetchNYCSnowfallMarkets(): Promise<ParsedPolymarketMarket[]> {
-  // The exact slug for NYC Jan 24-26 snowfall
+  // The exact slug for NYC Feb 21-23 snowfall
   const EVENT_SLUG = "how-many-inches-of-snow-in-nyc-this-weekend-february-21-23";
 
   let allMarkets: PolymarketMarket[] = [];

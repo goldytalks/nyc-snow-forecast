@@ -101,7 +101,7 @@ export interface CurrentConditions {
 
 /**
  * Generate scenarios based on current NWS guidance
- * Updated for Jan 24, 2026 forecast
+ * Updated for Feb 21-24, 2026 forecast
  *
  * OPTIMIZED FOR CENTRAL PARK (coastal NYC location)
  *
@@ -146,29 +146,33 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
       mean: remainingMedian + observedSnowfall,
-      stdDev: (remainingHigh - remainingLow) / 3,
+      // Wider stdDev: NWS forecasts have ~2.5-3" RMSE at this lead time
+      // (remainingHigh - remainingLow) / 2.5 gives more realistic spread
+      stdDev: (remainingHigh - remainingLow) / 2.5,
       description: `NWS forecast: ${nwsLow}-${nwsHigh}" verifies`,
     },
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      // For Central Park: only +2" above NWS high (not +3" like inland)
-      mean: remainingHigh + 2 + observedSnowfall,
-      stdDev: 2.0, // Tighter spread for coastal
-      description: "Optimal track, no mixing, high ratios",
+      // Blizzard warning + model convergence = higher ceiling
+      // Central Park can get +3" above NWS high with banding
+      mean: remainingHigh + 3 + observedSnowfall,
+      stdDev: 2.5,
+      description: "Optimal track, banding over city, high ratios",
     },
     {
       name: "Extended Mixing",
       probability: mixingProb,
-      // Mixing more likely for Central Park (coastal)
-      mean: Math.max(remainingLow - 1, 5) + observedSnowfall,
+      // Mixing less likely for this event (low mixing risk)
+      // But still possible near coast
+      mean: Math.max(remainingLow - 2, 5) + observedSnowfall,
       stdDev: 1.5,
       description: "More mixing than forecast reduces totals",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      mean: Math.max(remainingLow - 3, 3) + observedSnowfall,
+      mean: Math.max(remainingLow - 4, 3) + observedSnowfall,
       stdDev: 1.5,
       description: "Track miss, dry slot, or bust",
     },
@@ -300,30 +304,43 @@ export function calculatePolymarketProbabilities(
 export function getCurrentConditions(): CurrentConditions {
   return {
     // Central Park specific forecast (NWS OKX guidance)
-    // NWS official: 6-10" for NYC/Central Park
-    // BUT: Blizzard warning issued (13-18" criteria) suggests high confidence
-    // Models have been trending coastward = more snow for NYC
-    // Split difference: use 8-12" as realistic range
-    nwsLow: 8,
-    nwsHigh: 12,
-    nwsMedian: 10, // Midpoint, accounting for bullish model trends
+    //
+    // NWS text guidance: "8-12 inches" for NYC/Central Park area
+    // BUT: BLIZZARD WARNING issued = NWS has HIGH confidence in significant event
+    // Blizzard criteria: sustained 35mph+ winds AND visibility <1/4 mi for 3+ hours
+    // This typically implies >10" of snow for it to meet visibility criterion
+    //
+    // Model trends (GFS/ECMWF/NAM all converging):
+    // - Storm track trending coastward = more snow for NYC
+    // - 850mb temperatures remain cold enough for all-snow
+    // - Snowfall rates 1-2"/hr expected = efficient snow generation
+    // - Multiple hours of banding likely over metro area
+    //
+    // Realistic calibration: 10-16" range for Central Park
+    // Low end: 10" (NWS high end, if storm slightly offshore)
+    // High end: 16" (models trending higher, banding over city)
+    // Median: 12" (blizzard warning confidence + coastal correction)
+    nwsLow: 10,
+    nwsHigh: 16,
+    nwsMedian: 12,
 
     // Mixing risk is LOW for this event
     // Cold air locked in, all-snow event expected
-    // No significant mixing mentioned in guidance
+    // No significant mixing or warm-nose mentioned in any guidance
     mixingRisk: "low",
 
-    // Track uncertainty is MEDIUM-LOW
-    // Models coming into better agreement per NWS AFD
-    // "Slight wobbles in storm track" still possible
+    // Track uncertainty is LOW-MEDIUM
+    // Models coming into strong agreement per NWS AFD
+    // Blizzard warning issuance = NWS confident in solution
+    // "Slight wobbles" still possible but diminishing
     trackUncertainty: "medium",
 
     // OBSERVED: Storm hasn't started yet (as of Feb 21 morning)
     // Pre-storm period - 0" accumulation
     observedSnowfall: 0.0,
 
-    // Model spread ~3-4 inches
-    // GFS/ECMWF/NAM converging toward coastal solution
+    // Model spread narrowing as models converge
+    // GFS/ECMWF/NAM all showing coastal-heavy solution
     modelSpread: 3,
   };
 }

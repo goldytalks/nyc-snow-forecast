@@ -173,7 +173,7 @@ export async function GET() {
       markets: [],
       positions: [],
       orderbooks: {},
-      eventTitle: "NYC Snowfall Jan 24-26",
+      eventTitle: "NYC Snowfall Feb 21-23",
       eventEndDate: "",
     };
 
@@ -271,7 +271,7 @@ export async function GET() {
         const totalCurrentValue = positionsWithPnL.reduce((sum, p) => sum + p.current_value, 0);
 
         return {
-          eventTitle: "NYC Snowstorm Jan 26",
+          eventTitle: "NYC Snowstorm Feb 21-24",
           eventTicker: "KXSNOWSTORM-26FEBNYC2",
           markets: formattedKalshiMarkets,
           positions: positionsWithPnL,
