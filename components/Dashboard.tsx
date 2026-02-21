@@ -36,7 +36,7 @@ export function Dashboard({ initialData }: DashboardProps) {
             </h1>
             <p className="text-muted-foreground mt-1 flex items-center gap-2">
               <MapPin className="w-4 h-4" />
-              Central Park &bull; January 24-26, 2026
+              Central Park &bull; February 21-24, 2026
             </p>
           </div>
           <div className="flex items-center gap-2">

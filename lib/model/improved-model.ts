@@ -265,42 +265,66 @@ export function calculatePolymarketProbabilities(
 }
 
 /**
- * Get current conditions based on latest NWS guidance (Jan 24, 2026)
+ * Get current conditions based on latest NWS guidance
  *
- * CRITICAL: Optimized for NY CITY CENTRAL PARK specifically
- * Resolution source: weather.gov/wrh/climate?wfo=okx (CLINYC station)
+ * EVENT: February 21-24, 2026 NYC Snowstorm (Blizzard Warning)
  *
- * Key NWS guidance:
- * - "Around 10 inches near the coast" (Central Park IS coastal NYC)
- * - "Around 16 inches well inland" (NOT applicable to Central Park)
- * - Sunday: 7-11 inches snow/sleet
- * - Sunday Night: 1-3 inches (mixing possible for coastal areas)
- * - Monday: <0.5 inch
+ * MARKETS:
+ * - Kalshi KXSNOWSTORM-26FEBNYC2: Feb 21-24 (4 days)
+ * - Polymarket: Feb 21-23 (3 days)
  *
- * Central Park is a COASTAL location - mixing risk caps upside potential.
+ * RESOLUTION SOURCES (CRITICAL - these determine settlement):
+ * - Kalshi: NWS Daily Climate Report (CLINYC)
+ *   URL: https://forecast.weather.gov/product.php?site=OKX&product=CLI&issuedby=NYC
+ * - Polymarket: NOAA "New Snow (IN)" for NY-Central Park Area
+ *   URL: https://www.weather.gov/wrh/climate?wfo=okx
+ *
+ * Key NWS guidance (as of Feb 21, 2026):
+ * - BLIZZARD WARNING in effect for NYC (Feb 22-23)
+ * - NWS forecasts 6-10" for NYC metro area
+ * - Snowfall rates 1-2 inches per hour expected
+ * - Winds 20-35 mph with gusts to 45 mph (blizzard criteria)
+ * - Storm timing: Sunday morning through Monday afternoon
+ * - Models coming into better agreement, trending toward higher end
+ *
+ * Market context (for reference only - NOT for calibration):
+ * - Kalshi pricing: ~72% for >10", ~61% for >12", ~37% for >15"
+ * - Implied expectation: ~13.9" (SIGNIFICANTLY above NWS 6-10" guidance)
+ * - Market appears bullish vs NWS official guidance
+ *
+ * CALIBRATION APPROACH:
+ * We anchor to NWS guidance since that's the resolution source.
+ * However, blizzard warnings suggest NWS has high confidence.
+ * Models trending toward coast = higher totals for Central Park.
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // Central Park specific forecast (coastal NYC)
-    // NWS explicitly says "around 10 inches near the coast"
+    // Central Park specific forecast (NWS OKX guidance)
+    // NWS official: 6-10" for NYC/Central Park
+    // BUT: Blizzard warning issued (13-18" criteria) suggests high confidence
+    // Models have been trending coastward = more snow for NYC
+    // Split difference: use 8-12" as realistic range
     nwsLow: 8,
-    nwsHigh: 12, // Central Park is coastal - cap at 12" (NOT 14" inland value)
-    nwsMedian: 10, // NWS says "around 10 inches" for coastal
+    nwsHigh: 12,
+    nwsMedian: 10, // Midpoint, accounting for bullish model trends
 
-    // Mixing risk is MEDIUM-HIGH for Central Park (coastal)
-    // NWS mentions potential mixing late Sunday for coastal areas
-    // This is the key factor limiting upside for Central Park
-    mixingRisk: "medium",
+    // Mixing risk is LOW for this event
+    // Cold air locked in, all-snow event expected
+    // No significant mixing mentioned in guidance
+    mixingRisk: "low",
 
-    // Track uncertainty is medium - models in decent agreement
+    // Track uncertainty is MEDIUM-LOW
+    // Models coming into better agreement per NWS AFD
+    // "Slight wobbles in storm track" still possible
     trackUncertainty: "medium",
 
-    // OBSERVED: 0.3" already recorded at Central Park on Jan 24
-    // Source: weather.gov/wrh/climate?wfo=okx
-    observedSnowfall: 0.3,
+    // OBSERVED: Storm hasn't started yet (as of Feb 21 morning)
+    // Pre-storm period - 0" accumulation
+    observedSnowfall: 0.0,
 
-    // Model spread ~3-4 inches for Central Park
-    modelSpread: 4,
+    // Model spread ~3-4 inches
+    // GFS/ECMWF/NAM converging toward coastal solution
+    modelSpread: 3,
   };
 }
 

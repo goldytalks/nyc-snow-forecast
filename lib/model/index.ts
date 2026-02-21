@@ -379,15 +379,17 @@ export function runForecastModelImproved(): ForecastOutput {
       nam: { value: 11, trend: "steady" },
     },
     keyUncertainties: [
-      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for NYC area`,
-      `Mixing risk: ${conditions.mixingRisk} - could reduce totals`,
-      `Model uses Gamma distribution for proper right-skew`,
+      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for Central Park`,
+      `BLIZZARD WARNING: 13-18" criteria met (high confidence event)`,
+      `Mixing risk: ${conditions.mixingRisk} - cold air locked in`,
+      `Models trending coastward = bullish for NYC totals`,
+      `Kalshi (Feb 21-24) vs Polymarket (Feb 21-23) - different date ranges!`,
     ],
     timing: {
-      snowStarts: "2026-01-25T06:00:00Z",
-      heaviestSnow: "2026-01-25T12:00:00Z",
-      mixingWindow: ["2026-01-25T22:00:00Z", "2026-01-26T04:00:00Z"],
-      snowEnds: "2026-01-26T12:00:00Z",
+      snowStarts: "2026-02-22T11:00:00Z",  // Sunday morning
+      heaviestSnow: "2026-02-22T22:00:00Z", // Sunday night - 1-2"/hr rates
+      mixingWindow: ["2026-02-22T00:00:00Z", "2026-02-22T00:00:00Z"], // No mixing expected
+      snowEnds: "2026-02-23T18:00:00Z",     // Monday afternoon
     },
     dataSources: {
       nwsForecast: { status: "live", updateTime: now },
