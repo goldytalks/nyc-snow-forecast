@@ -42,7 +42,7 @@ function formatKalshiMarket(market: KalshiMarketDetails) {
   const yesMid = (yesBid + yesAsk) / 2;
   const noMid = (noBid + noAsk) / 2;
 
-  // Extract threshold from ticker (e.g., "KXSNOWSTORM-26JANNYC-8.0" -> 8)
+  // Extract threshold from ticker (e.g., "KXSNOWSTORM-26FEBNYC2-8.0" -> 8)
   const tickerMatch = market.ticker.match(/-(\d+(?:\.\d+)?)$/);
   const threshold = tickerMatch ? parseFloat(tickerMatch[1]) : null;
   const displayTitle = threshold !== null
@@ -272,7 +272,7 @@ export async function GET() {
 
         return {
           eventTitle: "NYC Snowstorm Jan 26",
-          eventTicker: "KXSNOWSTORM-26JANNYC",
+          eventTicker: "KXSNOWSTORM-26FEBNYC2",
           markets: formattedKalshiMarkets,
           positions: positionsWithPnL,
           positionSummary: {
@@ -290,7 +290,7 @@ export async function GET() {
       // Polymarket data
       polymarket: {
         eventTitle: polymarketDetails.eventTitle,
-        eventSlug: "how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26",
+        eventSlug: "how-many-inches-of-snow-in-nyc-this-weekend-february-21-23",
         eventEndDate: polymarketDetails.eventEndDate,
         markets: formattedPolymarketMarkets,
         positions: polymarketDetails.positions,

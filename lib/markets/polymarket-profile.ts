@@ -179,7 +179,7 @@ export async function getNYCSnowfallMarketsWithDetails(): Promise<{
   eventTitle: string;
   eventEndDate: string;
 }> {
-  const EVENT_SLUG = "how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26";
+  const EVENT_SLUG = "how-many-inches-of-snow-in-nyc-this-weekend-february-21-23";
   const username = process.env.POLYMARKET_PROFILE_USERNAME || "";
 
   try {

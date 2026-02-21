@@ -282,7 +282,7 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
               {liveData.kalshi.positions.map((pos, i) => {
                 const isProfit = (pos.unrealized_pnl || 0) >= 0;
                 const isLong = (pos.position || 0) > 0;
-                // Extract threshold from ticker (e.g., "KXSNOWSTORM-26JANNYC-10.0" -> "10")
+                // Extract threshold from ticker (e.g., "KXSNOWSTORM-26FEBNYC2-10.0" -> "10")
                 const thresholdMatch = pos.ticker?.match(/-(\d+(?:\.\d+)?)$/);
                 const threshold = thresholdMatch ? thresholdMatch[1] : pos.ticker;
 
@@ -398,7 +398,7 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
                 {liveData?.kalshi?.eventTitle || "Kalshi Over/Under"}
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                {liveData?.kalshi?.eventTicker || "KXSNOWSTORM-26JANNYC"} •{" "}
+                {liveData?.kalshi?.eventTicker || "KXSNOWSTORM-26FEBNYC2"} •{" "}
                 {liveData?.kalshi?.marketsFound || 0} markets
                 {totalKalshiPositions > 0 && (
                   <span className="text-emerald-400 ml-2">
@@ -408,7 +408,7 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
               </p>
             </div>
             <a
-              href="https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc"
+              href="https://kalshi.com/markets/kxsnowstorm/snowstorms/KXSNOWSTORM-26FEBNYC2"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -539,7 +539,7 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
               </p>
             </div>
             <a
-              href="https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26"
+              href="https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"

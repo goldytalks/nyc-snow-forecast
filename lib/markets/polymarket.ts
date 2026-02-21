@@ -185,11 +185,11 @@ export async function getCLOBPrices(tokenIds: string[]): Promise<CLOBPrice[]> {
 
 /**
  * Fetch NYC snowfall markets from Polymarket
- * Specific event: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
+ * Specific event: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
  */
 export async function fetchNYCSnowfallMarkets(): Promise<ParsedPolymarketMarket[]> {
   // The exact slug for NYC Jan 24-26 snowfall
-  const EVENT_SLUG = "how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26";
+  const EVENT_SLUG = "how-many-inches-of-snow-in-nyc-this-weekend-february-21-23";
 
   let allMarkets: PolymarketMarket[] = [];
 
@@ -207,9 +207,9 @@ export async function fetchNYCSnowfallMarkets(): Promise<ParsedPolymarketMarket[
   // If no markets found, try alternative slugs
   if (allMarkets.length === 0) {
     const fallbackSlugs = [
-      "nyc-snowfall-january-2026",
+      "how-many-inches-of-snow-in-nyc-this-weekend-february-21-23-273",
+      "nyc-snowfall-february-2026",
       "new-york-city-snowfall",
-      "nyc-snow-january-2026",
     ];
 
     for (const slug of fallbackSlugs) {

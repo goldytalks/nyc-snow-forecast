@@ -7,9 +7,10 @@
  * 2. Update the prices below (as percentages 0-100)
  * 3. Redeploy or refresh the page
  *
- * Polymarket: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
+ * Kalshi: https://kalshi.com/markets/kxsnowstorm/snowstorms/KXSNOWSTORM-26FEBNYC2
+ * Polymarket: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
  *
- * Last Updated: 2026-01-23 2:57 PM EST
+ * Last Updated: 2026-02-21 (fallback prices - live API preferred)
  */
 
 export interface MarketPrice {
@@ -25,7 +26,7 @@ export interface MarketPrice {
 
 // ============================================
 // KALSHI PRICES - Update these with current YES prices
-// https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc
+// https://kalshi.com/markets/kxsnowstorm/snowstorms/KXSNOWSTORM-26FEBNYC2
 // ============================================
 export const KALSHI_PRICES: MarketPrice[] = [
   { threshold: 2, yesPrice: 97, source: "kalshi" },
@@ -39,7 +40,7 @@ export const KALSHI_PRICES: MarketPrice[] = [
 
 // ============================================
 // POLYMARKET PRICES - Update these with current YES prices
-// https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-jan-24-26
+// https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
 // ============================================
 export const POLYMARKET_PRICES: MarketPrice[] = [
   { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 4, source: "polymarket", volume: 10145 },

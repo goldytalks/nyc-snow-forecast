@@ -128,11 +128,11 @@ export async function getKalshiMarket(ticker: string): Promise<KalshiMarket> {
 
 /**
  * Fetch all NYC snowfall markets
- * Specific event: https://kalshi.com/markets/kxsnowstorm/snowstorms/kxsnowstorm-26jannyc
+ * Specific event: https://kalshi.com/markets/kxsnowstorm/snowstorms/KXSNOWSTORM-26FEBNYC2
  */
 export async function fetchNYCSnowfallMarkets(): Promise<ParsedKalshiMarket[]> {
   // The exact event ticker for NYC Jan 26 snowstorm
-  const EVENT_TICKER = "KXSNOWSTORM-26JANNYC";
+  const EVENT_TICKER = "KXSNOWSTORM-26FEBNYC2";
 
   let allMarkets: KalshiMarket[] = [];
 

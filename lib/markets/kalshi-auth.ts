@@ -157,7 +157,7 @@ export async function getKalshiPositionsWithStatus(): Promise<{
     const positions = (data.market_positions || [])
       .filter((pos: any) => pos.position !== 0) // Only include non-zero positions
       .map((pos: any) => {
-        // Extract event_ticker from ticker (e.g., "KXSNOWSTORM-26JANNYC-10.0" -> "KXSNOWSTORM-26JANNYC")
+        // Extract event_ticker from ticker (e.g., "KXSNOWSTORM-26FEBNYC2-10.0" -> "KXSNOWSTORM-26FEBNYC2")
         const tickerParts = pos.ticker.split("-");
         const eventTicker = tickerParts.length >= 2
           ? tickerParts.slice(0, -1).join("-")
@@ -277,7 +277,7 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
   orderbooks: Record<string, KalshiOrderbook>;
   authStatus: { authenticated: boolean; error?: string };
 }> {
-  const EVENT_TICKER = "KXSNOWSTORM-26JANNYC";
+  const EVENT_TICKER = "KXSNOWSTORM-26FEBNYC2";
   let authStatus: { authenticated: boolean; error?: string } = { authenticated: false };
 
   try {
