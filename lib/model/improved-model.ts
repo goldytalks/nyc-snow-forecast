@@ -233,7 +233,7 @@ export function calculateBucketProbability(
 export function calculateKalshiProbabilities(
   scenarios: ImprovedScenario[]
 ): Record<string, number> {
-  const thresholds = [2, 4, 6, 8, 10, 12, 15, 18, 20, 24];
+  const thresholds = [2, 4, 6, 8, 10, 12, 14, 15, 16, 18, 20, 24];
   const result: Record<string, number> = {};
 
   for (const threshold of thresholds) {
@@ -252,13 +252,14 @@ export function calculatePolymarketProbabilities(
   scenarios: ImprovedScenario[]
 ): Record<string, number> {
   const buckets = [
-    { name: "<4", low: 0, high: 4 },
-    { name: "4-6", low: 4, high: 6 },
-    { name: "6-8", low: 6, high: 8 },
+    { name: "<8", low: 0, high: 8 },
     { name: "8-10", low: 8, high: 10 },
     { name: "10-12", low: 10, high: 12 },
     { name: "12-14", low: 12, high: 14 },
-    { name: "14+", low: 14, high: 100 },
+    { name: "14-16", low: 14, high: 16 },
+    { name: "16-18", low: 16, high: 18 },
+    { name: "18-20", low: 18, high: 20 },
+    { name: "20+", low: 20, high: 100 },
   ];
 
   const result: Record<string, number> = {};

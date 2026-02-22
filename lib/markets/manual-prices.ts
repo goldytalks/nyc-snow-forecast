@@ -8,7 +8,7 @@
  * 3. Redeploy or refresh the page
  *
  * Kalshi: https://kalshi.com/markets/kxsnowstorm/snowstorms/KXSNOWSTORM-26FEBNYC2
- * Polymarket: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
+ * Polymarket: https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23-273
  *
  * Last Updated: 2026-02-21 ~11:30 AM ET (from Kalshi/market aggregator data)
  * Kalshi confirmed: >10"=72%, >12"=61%, >15"=37%, implied mean ~13.9"
@@ -43,16 +43,17 @@ export const KALSHI_PRICES: MarketPrice[] = [
 
 // ============================================
 // POLYMARKET PRICES - Update these with current YES prices
-// https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23
+// https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23-273
 // ============================================
 export const POLYMARKET_PRICES: MarketPrice[] = [
-  { range: "<4", rangeLow: null, rangeHigh: 4, rangeType: "under", yesPrice: 3, source: "polymarket", volume: 15000 },
-  { range: "4-6", rangeLow: 4, rangeHigh: 6, rangeType: "range", yesPrice: 4, source: "polymarket", volume: 15000 },
-  { range: "6-8", rangeLow: 6, rangeHigh: 8, rangeType: "range", yesPrice: 9, source: "polymarket", volume: 15000 },
-  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 12, source: "polymarket", volume: 15000 },
-  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 11, source: "polymarket", volume: 15000 },
-  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 16, source: "polymarket", volume: 15000 },
-  { range: "14+", rangeLow: 14, rangeHigh: null, rangeType: "over", yesPrice: 45, source: "polymarket", volume: 15000 },
+  { range: "<8", rangeLow: null, rangeHigh: 8, rangeType: "under", yesPrice: 3, source: "polymarket", volume: 15000 },
+  { range: "8-10", rangeLow: 8, rangeHigh: 10, rangeType: "range", yesPrice: 5, source: "polymarket", volume: 15000 },
+  { range: "10-12", rangeLow: 10, rangeHigh: 12, rangeType: "range", yesPrice: 7, source: "polymarket", volume: 15000 },
+  { range: "12-14", rangeLow: 12, rangeHigh: 14, rangeType: "range", yesPrice: 10, source: "polymarket", volume: 15000 },
+  { range: "14-16", rangeLow: 14, rangeHigh: 16, rangeType: "range", yesPrice: 12, source: "polymarket", volume: 15000 },
+  { range: "16-18", rangeLow: 16, rangeHigh: 18, rangeType: "range", yesPrice: 15, source: "polymarket", volume: 15000 },
+  { range: "18-20", rangeLow: 18, rangeHigh: 20, rangeType: "range", yesPrice: 18, source: "polymarket", volume: 15000 },
+  { range: "20+", rangeLow: 20, rangeHigh: null, rangeType: "over", yesPrice: 30, source: "polymarket", volume: 15000 },
 ];
 
 /**
@@ -64,13 +65,14 @@ export function calculateRangeProbabilities(
   const get = (t: string) => modelStrikeProbabilities[t] || 0;
 
   return {
-    "<4": 1 - get("4"),
-    "4-6": get("4") - get("6"),
-    "6-8": get("6") - get("8"),
+    "<8": 1 - get("8"),
     "8-10": get("8") - get("10"),
     "10-12": get("10") - get("12"),
     "12-14": get("12") - get("14"),
-    "14+": get("14"),
+    "14-16": get("14") - get("16"),
+    "16-18": get("16") - get("18"),
+    "18-20": get("18") - get("20"),
+    "20+": get("20"),
   };
 }
 
@@ -136,7 +138,7 @@ export function calculateAllEdges(
       modelProb,
       marketProb,
       edge,
-      edgePct: edge * 100,
+      edgePct: Math.abs(edge) * 100,
       direction,
       confidence,
       ev: Math.round(ev * 1000) / 1000,
@@ -181,7 +183,7 @@ export function calculateAllEdges(
       modelProb,
       marketProb,
       edge,
-      edgePct: edge * 100,
+      edgePct: Math.abs(edge) * 100,
       direction,
       confidence,
       ev: Math.round(ev * 1000) / 1000,

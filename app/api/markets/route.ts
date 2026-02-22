@@ -290,7 +290,7 @@ export async function GET() {
       // Polymarket data
       polymarket: {
         eventTitle: polymarketDetails.eventTitle,
-        eventSlug: "how-many-inches-of-snow-in-nyc-this-weekend-february-21-23",
+        eventSlug: "how-many-inches-of-snow-in-nyc-this-weekend-february-21-23-273",
         eventEndDate: polymarketDetails.eventEndDate,
         markets: formattedPolymarketMarkets,
         positions: polymarketDetails.positions,

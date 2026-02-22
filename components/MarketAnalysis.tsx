@@ -116,11 +116,17 @@ interface MarketAPIResponse {
   };
 }
 
-// Helper to safely get edge percentage
+// Helper to safely get edge percentage (always positive — direction tells you YES/NO)
 const getEdgePct = (edge: any): number => {
-  if (edge.edgePct !== undefined) return edge.edgePct;
-  if (edge.edge !== undefined) return edge.edge * 100;
+  if (edge.edgePct !== undefined) return Math.abs(edge.edgePct);
+  if (edge.edge !== undefined) return Math.abs(edge.edge) * 100;
   return 0;
+};
+
+// Helper to get edge direction label
+const getEdgeLabel = (edge: any): string => {
+  if (!edge || edge.direction === "NO_EDGE") return "";
+  return edge.direction === "BUY_YES" ? "YES" : "NO";
 };
 
 // Helper to safely get kelly percentage
@@ -497,13 +503,10 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
                             className={`font-mono ${
                               getEdgePct(edge) > 5
                                 ? "text-emerald-400"
-                                : getEdgePct(edge) < -5
-                                  ? "text-red-400"
-                                  : "text-muted-foreground"
+                                : "text-muted-foreground"
                             }`}
                           >
-                            {getEdgePct(edge) >= 0 ? "+" : ""}
-                            {getEdgePct(edge).toFixed(1)}%
+                            +{getEdgePct(edge).toFixed(1)}% {getEdgeLabel(edge)}
                           </span>
                         </td>
                         <td className="py-2 pl-2 text-right">
@@ -539,7 +542,7 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
               </p>
             </div>
             <a
-              href="https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23"
+              href="https://polymarket.com/event/how-many-inches-of-snow-in-nyc-this-weekend-february-21-23-273"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
@@ -621,13 +624,10 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
                             className={`font-mono ${
                               getEdgePct(edge) > 5
                                 ? "text-emerald-400"
-                                : getEdgePct(edge) < -5
-                                  ? "text-red-400"
-                                  : "text-muted-foreground"
+                                : "text-muted-foreground"
                             }`}
                           >
-                            {getEdgePct(edge) >= 0 ? "+" : ""}
-                            {getEdgePct(edge).toFixed(1)}%
+                            +{getEdgePct(edge).toFixed(1)}% {getEdgeLabel(edge)}
                           </span>
                         </td>
                         <td className="py-2 px-1 text-right text-xs text-muted-foreground">
@@ -758,13 +758,10 @@ function KalshiMarketRow({
           className={`font-mono text-sm font-semibold ${
             edgePct > 5
               ? "text-emerald-400"
-              : edgePct < -5
-                ? "text-red-400"
-                : "text-muted-foreground"
+              : "text-muted-foreground"
           }`}
         >
-          {edgePct >= 0 ? "+" : ""}
-          {edgePct.toFixed(1)}%
+          +{edgePct.toFixed(1)}% {edge ? getEdgeLabel(edge) : ""}
         </span>
       </td>
       {/* Signal */}
@@ -827,13 +824,10 @@ function PolymarketMarketRow({
           className={`font-mono text-sm font-semibold ${
             edgePct > 5
               ? "text-emerald-400"
-              : edgePct < -5
-                ? "text-red-400"
-                : "text-muted-foreground"
+              : "text-muted-foreground"
           }`}
         >
-          {edgePct >= 0 ? "+" : ""}
-          {edgePct.toFixed(1)}%
+          +{edgePct.toFixed(1)}% {edge ? getEdgeLabel(edge) : ""}
         </span>
       </td>
       {/* Volume */}
@@ -894,9 +888,8 @@ function OpportunityCard({ edge, rank }: { edge: EdgeAnalysis; rank: number }) {
         </div>
       </div>
       <div className="text-right">
-        <div className={`font-mono font-bold text-lg text-${color}-400`}>
-          {isYes ? "+" : ""}
-          {getEdgePct(edge).toFixed(1)}%
+        <div className="font-mono font-bold text-lg text-emerald-400">
+          +{getEdgePct(edge).toFixed(1)}% {getEdgeLabel(edge)}
         </div>
         <div className="text-xs text-muted-foreground">
           Kelly: {getKellyPct(edge).toFixed(1)}%
