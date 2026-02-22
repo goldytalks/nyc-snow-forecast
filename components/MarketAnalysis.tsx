@@ -292,6 +292,78 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
                 // Extract threshold from ticker (e.g., "KXSNOWSTORM-26FEBNYC2-10.0" -> "10")
                 const thresholdMatch = pos.ticker?.match(/-(\d+(?:\.\d+)?)$/);
                 const threshold = thresholdMatch ? thresholdMatch[1] : pos.ticker;
+                const thresholdNum = threshold ? parseFloat(threshold) : null;
+
+                // Find model probability and market data for this strike
+                const matchingEdge = thresholdNum !== null
+                  ? kalshiEdges.find((e) => e.threshold === thresholdNum)
+                  : null;
+                const matchingMarket = thresholdNum !== null
+                  ? liveData.kalshi.markets?.find((m) => m.threshold === thresholdNum)
+                  : null;
+
+                const modelProb = matchingEdge?.modelProb ?? strikeProbabilities[threshold || ""] ?? null;
+                const currentPrice = pos.currentPrice || 0;
+
+                // Sell recommendation logic
+                // YES position: sell if market price > model fair value (market overprices)
+                // NO position: sell if (1 - market) > (1 - model) i.e. market underprices YES
+                let sellSignal: { action: "SELL" | "HOLD"; reason: string; limitPrice: number; profitPerShare: number } | null = null;
+
+                if (modelProb !== null && currentPrice > 0) {
+                  if (isLong) {
+                    // YES position
+                    const marketOverModel = currentPrice - modelProb;
+                    if (isProfit && marketOverModel > 0.02) {
+                      // Market overvalues — sell to lock in profit
+                      const askPrice = matchingMarket?.yes?.ask ?? currentPrice;
+                      const limitPrice = Math.max(askPrice - 0.01, currentPrice);
+                      sellSignal = {
+                        action: "SELL",
+                        reason: `Market ${(currentPrice * 100).toFixed(0)}¢ > Model ${(modelProb * 100).toFixed(0)}¢ — overpriced by ${(marketOverModel * 100).toFixed(0)}¢`,
+                        limitPrice,
+                        profitPerShare: limitPrice - pos.average_price,
+                      };
+                    } else if (isProfit && marketOverModel <= 0.02 && marketOverModel >= -0.05) {
+                      sellSignal = {
+                        action: "HOLD",
+                        reason: `Market ${(currentPrice * 100).toFixed(0)}¢ ≈ Model ${(modelProb * 100).toFixed(0)}¢ — fairly priced, hold`,
+                        limitPrice: currentPrice,
+                        profitPerShare: currentPrice - pos.average_price,
+                      };
+                    } else if (!isProfit) {
+                      // Underwater but model says YES is underpriced — hold
+                      sellSignal = {
+                        action: "HOLD",
+                        reason: `Model ${(modelProb * 100).toFixed(0)}¢ > Market ${(currentPrice * 100).toFixed(0)}¢ — underpriced, hold for convergence`,
+                        limitPrice: currentPrice,
+                        profitPerShare: currentPrice - pos.average_price,
+                      };
+                    }
+                  } else {
+                    // NO position
+                    const noModelProb = 1 - modelProb;
+                    const noMarketPrice = 1 - currentPrice;
+                    const marketOverModel = noMarketPrice - noModelProb;
+                    if (isProfit && marketOverModel > 0.02) {
+                      const noBid = matchingMarket?.no?.bid ?? noMarketPrice;
+                      const limitPrice = Math.max(noBid - 0.01, noMarketPrice);
+                      sellSignal = {
+                        action: "SELL",
+                        reason: `NO market ${(noMarketPrice * 100).toFixed(0)}¢ > NO model ${(noModelProb * 100).toFixed(0)}¢ — overpriced by ${(marketOverModel * 100).toFixed(0)}¢`,
+                        limitPrice,
+                        profitPerShare: limitPrice - pos.average_price,
+                      };
+                    } else {
+                      sellSignal = {
+                        action: "HOLD",
+                        reason: `NO model ${(noModelProb * 100).toFixed(0)}¢ ≥ NO market ${(noMarketPrice * 100).toFixed(0)}¢ — hold`,
+                        limitPrice: noMarketPrice,
+                        profitPerShare: noMarketPrice - pos.average_price,
+                      };
+                    }
+                  }
+                }
 
                 return (
                   <div
@@ -353,6 +425,43 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
                         </div>
                       </div>
                     </div>
+
+                    {/* Trading Recommendation */}
+                    {sellSignal && (
+                      <div className={`mt-3 pt-3 border-t ${
+                        sellSignal.action === "SELL"
+                          ? "border-amber-500/30"
+                          : "border-border/50"
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={sellSignal.action === "SELL"
+                                ? "bg-amber-500/20 text-amber-400 border-amber-500/40 font-bold"
+                                : "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                              }
+                            >
+                              {sellSignal.action === "SELL" ? "SELL NOW" : "HOLD"}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {sellSignal.reason}
+                            </span>
+                          </div>
+                          {sellSignal.action === "SELL" && (
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground">Limit price</div>
+                              <div className="font-mono font-bold text-amber-400">
+                                {(sellSignal.limitPrice * 100).toFixed(0)}¢
+                              </div>
+                              <div className="text-[10px] text-emerald-400/70 font-mono">
+                                +{(sellSignal.profitPerShare * 100).toFixed(1)}¢/share profit
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
