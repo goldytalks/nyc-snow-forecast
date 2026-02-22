@@ -180,10 +180,10 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
     }
   };
 
-  // Fetch on mount and every 30 seconds
+  // Fetch on mount and every 10 seconds for near-real-time updates
   useEffect(() => {
     fetchMarketData();
-    const interval = setInterval(fetchMarketData, 30000);
+    const interval = setInterval(fetchMarketData, 10000);
     return () => clearInterval(interval);
   }, []);
 

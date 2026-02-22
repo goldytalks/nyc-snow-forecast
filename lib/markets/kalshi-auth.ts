@@ -1,12 +1,17 @@
 /**
  * Authenticated Kalshi API Client
  * Uses RSA key signing for authenticated endpoints
- * Docs: https://docs.kalshi.com/api-reference/authentication
+ * Docs: https://docs.kalshi.com/getting_started/api_keys
  */
 
 import crypto from "crypto";
 
-const KALSHI_API_BASE = "https://api.elections.kalshi.com/trade-api/v2";
+const KALSHI_API_BASES = [
+  "https://api.elections.kalshi.com/trade-api/v2",
+  "https://demo-api.kalshi.co/trade-api/v2",
+];
+
+let resolvedBaseUrl: string | null = null;
 
 interface KalshiPosition {
   ticker: string;
@@ -57,23 +62,17 @@ function generateAuthHeaders(
   apiKeyId: string,
   privateKeyPem: string
 ): Record<string, string> {
-  // Timestamp in milliseconds
   const timestamp = Date.now().toString();
-
-  // Strip query parameters from path for signing
   const pathWithoutQuery = path.split("?")[0];
 
-  // IMPORTANT: The signature must include the full path from the base URL
-  // e.g., "/trade-api/v2/portfolio/positions" not just "/portfolio/positions"
-  const fullPath = `/trade-api/v2${pathWithoutQuery}`;
+  // Message format: timestamp_ms + HTTP_METHOD + path_without_query
+  const message = timestamp + method.toUpperCase() + pathWithoutQuery;
 
-  // Message to sign: timestamp + method + full path (with base path prefix)
-  const message = timestamp + method.toUpperCase() + fullPath;
-
-  // Sign with RSA-PSS using SHA256
-  const privateKey = crypto.createPrivateKey(privateKeyPem);
-  const signature = crypto.sign("sha256", Buffer.from(message), {
-    key: privateKey,
+  const sign = crypto.createSign("RSA-SHA256");
+  sign.update(message);
+  sign.end();
+  const signature = sign.sign({
+    key: privateKeyPem,
     padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
     saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST,
   });
@@ -85,6 +84,56 @@ function generateAuthHeaders(
     "Content-Type": "application/json",
     Accept: "application/json",
   };
+}
+
+/**
+ * Probe Kalshi API bases to find which one accepts our key
+ */
+async function resolveApiBase(): Promise<string> {
+  if (resolvedBaseUrl) return resolvedBaseUrl;
+
+  const apiKeyId = process.env.KALSHI_API_KEY_ID;
+  const privateKey = process.env.KALSHI_PRIVATE_KEY;
+
+  if (!apiKeyId || !privateKey) {
+    return KALSHI_API_BASES[0];
+  }
+
+  for (const base of KALSHI_API_BASES) {
+    try {
+      const path = "/trade-api/v2/portfolio/balance";
+      const headers = generateAuthHeaders("GET", path, apiKeyId, privateKey);
+      const resp = await fetch(`${base}/portfolio/balance`, {
+        method: "GET",
+        headers,
+        cache: "no-store",
+      });
+
+      if (resp.status === 200) {
+        console.log(`[Kalshi] Auth works on ${base}`);
+        resolvedBaseUrl = base;
+        return base;
+      }
+
+      const body = await resp.text();
+      // NOT_FOUND means key doesn't exist on this domain, try next
+      if (body.includes("NOT_FOUND")) {
+        console.log(`[Kalshi] Key not found on ${base}, trying next...`);
+        continue;
+      }
+
+      // Any other error (signature mismatch, etc.) means key exists here but signing is wrong
+      console.log(`[Kalshi] Got ${resp.status} from ${base}: ${body.substring(0, 100)}`);
+      resolvedBaseUrl = base;
+      return base;
+    } catch {
+      continue;
+    }
+  }
+
+  // Default to production
+  resolvedBaseUrl = KALSHI_API_BASES[0];
+  return KALSHI_API_BASES[0];
 }
 
 /**
@@ -102,8 +151,10 @@ async function authenticatedRequest<T>(
     throw new Error("Kalshi API credentials not configured");
   }
 
-  const headers = generateAuthHeaders(method, path, apiKeyId, privateKey);
-  const url = `${KALSHI_API_BASE}${path}`;
+  const base = await resolveApiBase();
+  const fullPath = `/trade-api/v2${path.split("?")[0]}`;
+  const headers = generateAuthHeaders("GET", fullPath, apiKeyId, privateKey);
+  const url = `${base}${path}`;
 
   const response = await fetch(url, {
     method,
@@ -140,7 +191,6 @@ export async function getKalshiPositionsWithStatus(): Promise<{
     const privateKey = process.env.KALSHI_PRIVATE_KEY;
 
     if (!apiKeyId || !privateKey) {
-      console.log("[Kalshi Auth] API credentials not configured");
       return {
         positions: [],
         authStatus: { authenticated: false, error: "API credentials not configured" },
@@ -149,13 +199,11 @@ export async function getKalshiPositionsWithStatus(): Promise<{
 
     const data = await authenticatedRequest<{ market_positions: any[] }>(
       "GET",
-      "/portfolio/positions"
+      "/portfolio/positions?count_filter=position"
     );
 
-    console.log("[Kalshi Auth] Positions response:", JSON.stringify(data).substring(0, 200));
-
     const positions = (data.market_positions || [])
-      .filter((pos: any) => pos.position !== 0) // Only include non-zero positions
+      .filter((pos: any) => pos.position !== 0)
       .map((pos: any) => {
         // Extract event_ticker from ticker (e.g., "KXSNOWSTORM-26FEBNYC2-10.0" -> "KXSNOWSTORM-26FEBNYC2")
         const tickerParts = pos.ticker.split("-");
@@ -163,15 +211,23 @@ export async function getKalshiPositionsWithStatus(): Promise<{
           ? tickerParts.slice(0, -1).join("-")
           : pos.ticker;
 
+        // Kalshi monetary values are in centi-cents (÷10000 for dollars)
+        // Use _dollars fields when available for accuracy
         return {
           ticker: pos.ticker,
           event_ticker: eventTicker,
           market_title: pos.market_title || pos.ticker,
           position: pos.position,
-          average_price: pos.market_exposure / Math.abs(pos.position) / 100 || 0,
-          realized_pnl: pos.realized_pnl / 100 || 0,
-          unrealized_pnl: (pos.total_traded - pos.market_exposure) / 100 || 0,
-          total_cost: pos.market_exposure / 100 || 0,
+          average_price: pos.market_exposure_dollars
+            ? parseFloat(pos.market_exposure_dollars) / Math.abs(pos.position)
+            : pos.market_exposure / Math.abs(pos.position) / 10000 || 0,
+          realized_pnl: pos.realized_pnl_dollars
+            ? parseFloat(pos.realized_pnl_dollars)
+            : pos.realized_pnl / 10000 || 0,
+          unrealized_pnl: 0, // Calculated later with current market price
+          total_cost: pos.market_exposure_dollars
+            ? parseFloat(pos.market_exposure_dollars)
+            : pos.market_exposure / 10000 || 0,
         };
       });
 
@@ -181,16 +237,17 @@ export async function getKalshiPositionsWithStatus(): Promise<{
     };
   } catch (error: any) {
     const errorMsg = error?.message || String(error);
-    console.error("[Kalshi Auth] Failed to fetch positions:", errorMsg);
+    console.error("[Kalshi] Auth error:", errorMsg.substring(0, 200));
 
-    // Check for specific auth errors
     let authError = "Authentication failed";
-    if (errorMsg.includes("INCORRECT_API_KEY_SIGNATURE")) {
-      authError = "API key signature mismatch - please verify your API key pair";
+    if (errorMsg.includes("NOT_FOUND")) {
+      authError = "API key not found — regenerate at kalshi.com/account/profile";
+    } else if (errorMsg.includes("INCORRECT_API_KEY_SIGNATURE")) {
+      authError = "API key signature mismatch — verify key pair matches";
     } else if (errorMsg.includes("INVALID_API_KEY")) {
       authError = "Invalid API key ID";
-    } else if (errorMsg.includes("401")) {
-      authError = "Authentication failed - check API credentials";
+    } else if (errorMsg.includes("credentials not configured")) {
+      authError = "API credentials not configured in .env.local";
     }
 
     return {
@@ -201,14 +258,14 @@ export async function getKalshiPositionsWithStatus(): Promise<{
 }
 
 /**
- * Get orderbook for a specific market
+ * Get orderbook for a specific market (no auth required)
+ * Kalshi orderbooks only contain BIDS — YES bid at X¢ = NO ask at (100-X)¢
  */
 export async function getKalshiOrderbook(
   ticker: string
 ): Promise<KalshiOrderbook | null> {
   try {
-    // Orderbook endpoint doesn't require auth
-    const url = `${KALSHI_API_BASE}/markets/${ticker}/orderbook`;
+    const url = `${KALSHI_API_BASES[0]}/markets/${ticker}/orderbook`;
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -221,21 +278,42 @@ export async function getKalshiOrderbook(
     const data = await response.json();
     const orderbook = data.orderbook;
 
+    // Kalshi orderbook format: { yes: [[price, qty], ...], no: [[price, qty], ...] }
+    // These are BIDS only. Asks are derived from the opposite side.
+    const yesBids = (orderbook.yes || []).map((entry: any) => {
+      // Handle both array format [price, qty] and object format {price, quantity}
+      if (Array.isArray(entry)) {
+        return { price: entry[0], quantity: entry[1] };
+      }
+      return { price: entry.price, quantity: entry.quantity || entry.count };
+    });
+
+    const noBids = (orderbook.no || []).map((entry: any) => {
+      if (Array.isArray(entry)) {
+        return { price: entry[0], quantity: entry[1] };
+      }
+      return { price: entry.price, quantity: entry.quantity || entry.count };
+    });
+
+    // Derive implied asks from opposite side bids
+    // YES ask = 100 - best NO bid price
+    const yesAsks = noBids.map((nb: any) => ({
+      price: 100 - nb.price,
+      quantity: nb.quantity,
+    }));
+
+    const noAsks = yesBids.map((yb: any) => ({
+      price: 100 - yb.price,
+      quantity: yb.quantity,
+    }));
+
     return {
       ticker,
       market_title: ticker,
-      yes_bids: (orderbook.yes || [])
-        .filter((o: any) => o.side === "bid")
-        .map((o: any) => ({ price: o.price, quantity: o.quantity })),
-      yes_asks: (orderbook.yes || [])
-        .filter((o: any) => o.side === "ask")
-        .map((o: any) => ({ price: o.price, quantity: o.quantity })),
-      no_bids: (orderbook.no || [])
-        .filter((o: any) => o.side === "bid")
-        .map((o: any) => ({ price: o.price, quantity: o.quantity })),
-      no_asks: (orderbook.no || [])
-        .filter((o: any) => o.side === "ask")
-        .map((o: any) => ({ price: o.price, quantity: o.quantity })),
+      yes_bids: yesBids,
+      yes_asks: yesAsks,
+      no_bids: noBids,
+      no_asks: noAsks,
     };
   } catch (error) {
     console.error(`[Kalshi] Failed to fetch orderbook for ${ticker}:`, error);
@@ -250,7 +328,7 @@ export async function getKalshiMarketDetails(
   ticker: string
 ): Promise<KalshiMarketDetails | null> {
   try {
-    const url = `${KALSHI_API_BASE}/markets/${ticker}`;
+    const url = `${KALSHI_API_BASES[0]}/markets/${ticker}`;
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
       next: { revalidate: 60 },
@@ -281,8 +359,8 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
   let authStatus: { authenticated: boolean; error?: string } = { authenticated: false };
 
   try {
-    // Fetch markets for the event
-    const marketsUrl = `${KALSHI_API_BASE}/markets?event_ticker=${EVENT_TICKER}&limit=100`;
+    // Fetch markets for the event (no auth required)
+    const marketsUrl = `${KALSHI_API_BASES[0]}/markets?event_ticker=${EVENT_TICKER}&limit=100`;
     const marketsResponse = await fetch(marketsUrl, {
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -295,19 +373,25 @@ export async function getNYCSnowstormMarketsWithDetails(): Promise<{
     const marketsData = await marketsResponse.json();
     const markets: KalshiMarketDetails[] = marketsData.markets || [];
 
-    // Fetch positions (authenticated) - returns result with auth status
-    const positionsResult = await getKalshiPositionsWithStatus();
-    authStatus = positionsResult.authStatus;
+    // Fetch positions with timeout so auth failures don't block the response
+    let eventPositions: KalshiPosition[] = [];
+    try {
+      const positionsPromise = getKalshiPositionsWithStatus();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Kalshi auth timeout")), 8000)
+      );
+      const positionsResult = await Promise.race([positionsPromise, timeoutPromise]);
+      authStatus = positionsResult.authStatus;
+      eventPositions = positionsResult.positions.filter(
+        (p) => p.ticker.startsWith(EVENT_TICKER) && p.position !== 0
+      );
+    } catch (err: any) {
+      authStatus = { authenticated: false, error: err.message || "Auth timeout" };
+    }
 
-    // Filter positions for this event (by ticker prefix) and exclude zero positions
-    const eventPositions = positionsResult.positions.filter(
-      (p) => p.ticker.startsWith(EVENT_TICKER) && p.position !== 0
-    );
-
-    // Fetch orderbooks for each market
+    // Fetch orderbooks for each market (no auth required)
     const orderbooks: Record<string, KalshiOrderbook> = {};
     for (const market of markets.slice(0, 10)) {
-      // Limit to 10 markets
       const orderbook = await getKalshiOrderbook(market.ticker);
       if (orderbook) {
         orderbook.market_title = market.title;
