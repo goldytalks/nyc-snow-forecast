@@ -178,7 +178,8 @@ export async function getNYCSnowfallMarketsWithDetails(): Promise<{
     const marketTokenIds = new Set<string>();
     for (const m of markets) {
       if (m.clobTokenIds) {
-        m.clobTokenIds.forEach((t) => marketTokenIds.add(t));
+        const ids = typeof m.clobTokenIds === "string" ? JSON.parse(m.clobTokenIds) : m.clobTokenIds;
+        (ids as string[]).forEach((t) => marketTokenIds.add(t));
       }
     }
     // Match positions by token_id (asset field) against market token IDs
@@ -189,8 +190,9 @@ export async function getNYCSnowfallMarketsWithDetails(): Promise<{
     // Fetch orderbooks for markets with CLOB token IDs
     const orderbooks: Record<string, PolymarketOrderbook> = {};
     for (const market of markets.slice(0, 10)) {
-      if (market.clobTokenIds && market.clobTokenIds.length > 0) {
-        const tokenId = market.clobTokenIds[0];
+      const parsedTokenIds = market.clobTokenIds ? (typeof market.clobTokenIds === "string" ? JSON.parse(market.clobTokenIds) : market.clobTokenIds) as string[] : [];
+      if (parsedTokenIds.length > 0) {
+        const tokenId = parsedTokenIds[0];
         const orderbook = await getPolymarketOrderbook(tokenId, market.question);
         if (orderbook) {
           orderbooks[market.id] = orderbook;

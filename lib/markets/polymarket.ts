@@ -256,9 +256,10 @@ async function enrichWithCLOBPrices(markets: PolymarketMarket[]): Promise<Polyma
   const enrichedMarkets: PolymarketMarket[] = [];
 
   for (const market of markets) {
-    if (market.clobTokenIds && market.clobTokenIds.length > 0) {
+    const tokenIds = market.clobTokenIds ? (typeof market.clobTokenIds === "string" ? JSON.parse(market.clobTokenIds) : market.clobTokenIds) as string[] : [];
+    if (tokenIds.length > 0) {
       try {
-        const prices = await getCLOBPrices(market.clobTokenIds.slice(0, 1));
+        const prices = await getCLOBPrices(tokenIds.slice(0, 1));
         if (prices.length > 0) {
           const price = prices[0];
           market.bestBid = price.bid.toString();
