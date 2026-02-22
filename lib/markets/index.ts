@@ -225,7 +225,9 @@ export function getModelProbabilities(): Record<string, number> {
   // Model mean: 11.9", median: 12"
   return {
     "2": 1.0,
+    "3": 0.998,
     "4": 0.989,
+    "5": 0.965,
     "6": 0.907,
     "8": 0.769,
     "10": 0.613,

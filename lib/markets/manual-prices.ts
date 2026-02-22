@@ -33,7 +33,9 @@ export interface MarketPrice {
 // ============================================
 export const KALSHI_PRICES: MarketPrice[] = [
   { threshold: 2, yesPrice: 99, source: "kalshi" },
+  { threshold: 3, yesPrice: 99, source: "kalshi" },
   { threshold: 4, yesPrice: 97, source: "kalshi" },
+  { threshold: 5, yesPrice: 96, source: "kalshi" },
   { threshold: 6, yesPrice: 93, source: "kalshi" },
   { threshold: 8, yesPrice: 84, source: "kalshi" },
   { threshold: 10, yesPrice: 72, source: "kalshi" },

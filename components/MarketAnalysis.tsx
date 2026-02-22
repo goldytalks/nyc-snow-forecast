@@ -28,6 +28,7 @@ interface MarketAnalysisProps {
 interface KalshiMarket {
   ticker: string;
   title: string;
+  threshold: number | null;
   subtitle: string;
   closeTime: string;
   expirationTime: string;
@@ -474,9 +475,7 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
                         <KalshiMarketRow
                           key={market.ticker}
                           market={market}
-                          edge={kalshiEdges.find((e) =>
-                            e.market.includes(market.title.replace(/[^0-9.]/g, ""))
-                          )}
+                          edge={kalshiEdges.find((e) => e.threshold === market.threshold)}
                           position={position}
                         />
                       );
