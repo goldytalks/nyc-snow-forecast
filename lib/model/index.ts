@@ -141,7 +141,10 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     nwsHigh: adjustedHigh,
     nwsMedian: Math.round(((cappedLow + adjustedHigh) / 2) * 10) / 10,
     // Central Park has HIGHER mixing risk (coastal location)
-    mixingRisk: "medium" as const, // Always medium+ for coastal
+    // NWS AFD says "highest totals along the coast" for this storm
+    // Early rain/snow mix today but all-snow overnight through Monday
+    // Use actual mixing data from AFD rather than assuming medium
+    mixingRisk: (data.combined.mixingExpected ? "medium" : "low") as "low" | "medium" | "high",
     trackUncertainty: "medium" as const,
     observedSnowfall: observedSnowfall,
     modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
@@ -199,10 +202,11 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
       nam: { value: data.modelEstimates.nam, trend: "steady" },
     },
     keyUncertainties: [
-      `Central Park forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" (coastal-adjusted)`,
-      `NWS says "around 10 inches near the coast" for NYC`,
-      `Mixing risk: ${conditions.mixingRisk} (higher for coastal Central Park)`,
-      `Observed snowfall: ${conditions.observedSnowfall}" already recorded`,
+      `Central Park forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" (from NWS airport guidance 18-22")`,
+      `NWS AFD: "highest totals along the coast" — CP should match airports`,
+      `Mixing risk: ${conditions.mixingRisk} (early rain/snow mix at 35-36°F)`,
+      `Observed snowfall: ${conditions.observedSnowfall}" — storm just starting`,
+      `Resolution: CLINYC daily climate report (Central Park)`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",

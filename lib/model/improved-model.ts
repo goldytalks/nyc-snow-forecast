@@ -120,25 +120,24 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
 
   // CENTRAL PARK CALIBRATED scenario probabilities
-  // NWS says "around 10 inches" for coastal - this is our anchor
-  // Mixing risk limits upside for coastal locations
+  // NWS AFD (Feb 22): 18-22" for NYC airports, "highest totals along coast"
+  // Blizzard warning = high confidence event
+  // Brief rain/snow mix early, then all-snow through Monday
 
   // Scenario 1: NWS Forecast Verifies (most likely)
-  // Centered at NWS median (~10") for coastal
   const baseCaseProb = 0.50;
 
-  // Scenario 2: High-End (all snow, good banding)
-  // REDUCED for Central Park - coastal areas have higher mixing risk
-  // Upside is capped vs inland locations
+  // Scenario 2: High-End (banding, high SLR)
+  // NWS notes "reasonable worst case up to 3 ft" and NBM 90th near 3 ft
   const highEndProb = mixingRisk === "high" ? 0.10 :
-                      mixingRisk === "medium" ? 0.15 : 0.20;
+                      mixingRisk === "medium" ? 0.12 : 0.15;
 
-  // Scenario 3: Mixing scenario (reduces totals)
-  // INCREASED for Central Park - coastal areas more prone to mixing
+  // Scenario 3: More mixing than expected
+  // Early period has rain/snow mix at 35-36°F, could persist longer
   const mixingProb = mixingRisk === "high" ? 0.25 :
-                     mixingRisk === "medium" ? 0.22 : 0.15;
+                     mixingRisk === "medium" ? 0.22 : 0.18;
 
-  // Scenario 4: Bust/Underperformance
+  // Scenario 4: Significant underperformance (track miss, dry slot)
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
 
   return [
@@ -163,17 +162,18 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
     {
       name: "Extended Mixing",
       probability: mixingProb,
-      // Mixing less likely for this event (low mixing risk)
-      // But still possible near coast
-      mean: Math.max(remainingLow - 2, 5) + observedSnowfall,
-      stdDev: 1.5,
+      // Rain/snow mix persists longer than forecast, reducing snow totals
+      // Early period at 35-36°F could eat into accumulation
+      mean: Math.max(remainingLow - 4, 5) + observedSnowfall,
+      stdDev: 2.0,
       description: "More mixing than forecast reduces totals",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      mean: Math.max(remainingLow - 4, 3) + observedSnowfall,
-      stdDev: 1.5,
+      // Storm tracks east, dry slot, or NWS significantly overpredicts
+      mean: Math.max(remainingLow - 6, 3) + observedSnowfall,
+      stdDev: 2.0,
       description: "Track miss, dry slot, or bust",
     },
   ];
