@@ -11,7 +11,8 @@ import { StatusIndicator } from "@/components/StatusIndicator";
 import { TimingPanel } from "@/components/TimingPanel";
 import { MarketAnalysis } from "@/components/MarketAnalysis";
 import { DataSourcesPanel } from "@/components/DataSourcesPanel";
-import { MapPin, Snowflake, RefreshCw } from "lucide-react";
+import { MapPin, Snowflake, RefreshCw, FileText } from "lucide-react";
+import Link from "next/link";
 import type { ForecastData } from "@/lib/types";
 
 interface DashboardProps {
@@ -46,6 +47,13 @@ export function Dashboard({ initialData }: DashboardProps) {
               isConnected={isConnected}
               lastUpdate={lastUpdate}
             />
+            <Link
+              href="/model-notes"
+              className="p-2 rounded-md hover:bg-muted transition-colors"
+              title="Model Notes"
+            >
+              <FileText className="w-4 h-4 text-muted-foreground" />
+            </Link>
             <button
               onClick={refresh}
               className="p-2 rounded-md hover:bg-muted transition-colors"
