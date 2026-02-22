@@ -123,10 +123,10 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   const rawHigh = data.combined.snowfallRange.high;
 
   // Sanity check: AFD parser picks up regional/tri-state numbers
-  // NWS AFD (Feb 22): 18-22" for NYC airports is the best CP proxy.
-  // Cap at reasonable Central Park values to avoid inflated forecasts.
-  const cappedLow = Math.min(rawLow, 16);   // CP low-end capped at 16"
-  const cappedHigh = Math.min(rawHigh, 22);  // CP high-end capped at 22" (NWS airport high)
+  // NWS airports say 18-22" but CP historically underperforms vs NWS by 15-20%
+  // Cap to realistic Central Park range
+  const cappedLow = Math.min(rawLow, 12);   // CP low-end capped at 12"
+  const cappedHigh = Math.min(rawHigh, 20);  // CP high-end capped at 20"
 
   // Mild coastal correction for Central Park vs surrounding areas
   const coastalCorrectionFactor = 0.95;

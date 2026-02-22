@@ -121,23 +121,23 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
 
   // CENTRAL PARK CALIBRATED scenario probabilities
   // NWS AFD (Feb 22): 18-22" for NYC airports, "highest totals along coast"
-  // Blizzard warning = high confidence event
-  // Brief rain/snow mix early, then all-snow through Monday
+  // BUT: Market is pricing >15" at only ~48% — significant skepticism
+  // Mixing at 35-36°F early + NWS historically overpredicts for CP
+  // NBM snow ratios "consistently too high" per NWS's own AFD
 
-  // Scenario 1: NWS Forecast Verifies (most likely)
+  // Scenario 1: NWS Forecast Verifies (base case)
+  // Blizzard warning = high confidence event, base case dominates
   const baseCaseProb = 0.50;
 
   // Scenario 2: High-End (banding, high SLR)
-  // NWS notes "reasonable worst case up to 3 ft" and NBM 90th near 3 ft
-  const highEndProb = mixingRisk === "high" ? 0.10 :
-                      mixingRisk === "medium" ? 0.12 : 0.15;
+  const highEndProb = mixingRisk === "high" ? 0.05 :
+                      mixingRisk === "medium" ? 0.10 : 0.13;
 
-  // Scenario 3: More mixing than expected
-  // Early period has rain/snow mix at 35-36°F, could persist longer
-  const mixingProb = mixingRisk === "high" ? 0.25 :
-                     mixingRisk === "medium" ? 0.22 : 0.18;
+  // Scenario 3: Moderate underperformance (mixing eats some totals)
+  const mixingProb = mixingRisk === "high" ? 0.28 :
+                     mixingRisk === "medium" ? 0.22 : 0.20;
 
-  // Scenario 4: Significant underperformance (track miss, dry slot)
+  // Scenario 4: Significant underperformance (track miss, bust)
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
 
   return [
@@ -145,35 +145,33 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
       mean: remainingMedian + observedSnowfall,
-      // Wider stdDev: NWS forecasts have ~2.5-3" RMSE at this lead time
-      // (remainingHigh - remainingLow) / 2.5 gives more realistic spread
-      stdDev: (remainingHigh - remainingLow) / 2.5,
+      // Tighter base case — blizzard warning = NWS high confidence
+      stdDev: Math.max((remainingHigh - remainingLow) / 3.5, 2.0),
       description: `NWS forecast: ${nwsLow}-${nwsHigh}" verifies`,
     },
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      // Blizzard warning + model convergence = higher ceiling
-      // Central Park can get +3" above NWS high with banding
-      mean: remainingHigh + 3 + observedSnowfall,
+      // Banding over city, high SLR — but NWS notes NBM ratios too high
+      mean: remainingHigh + 2 + observedSnowfall,
       stdDev: 2.5,
       description: "Optimal track, banding over city, high ratios",
     },
     {
-      name: "Extended Mixing",
+      name: "Moderate Underperformance",
       probability: mixingProb,
-      // Rain/snow mix persists longer than forecast, reducing snow totals
-      // Early period at 35-36°F could eat into accumulation
-      mean: Math.max(remainingLow - 4, 5) + observedSnowfall,
+      // Mixing eats some totals, NWS overpredicts by ~20%
+      // With blizzard warning, storm still delivers 10-12"
+      mean: Math.max(remainingLow - 1, 8) + observedSnowfall,
       stdDev: 2.0,
-      description: "More mixing than forecast reduces totals",
+      description: "More mixing/lower ratios than forecast, reduced totals",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      // Storm tracks east, dry slot, or NWS significantly overpredicts
-      mean: Math.max(remainingLow - 6, 3) + observedSnowfall,
-      stdDev: 2.0,
+      // Track shifts or dry slot — still snows but well short of forecast
+      mean: Math.max(remainingLow * 0.6, 5) + observedSnowfall,
+      stdDev: 2.5,
       description: "Track miss, dry slot, or bust",
     },
   ];
@@ -309,16 +307,13 @@ export function getCurrentConditions(): CurrentConditions {
     // "1 to 2 ft across the tri-state"
     // Storm bulk: 7pm tonight through 7am Monday
     //
-    // Central Park adjustment: -1 to -2" vs airport stations
-    // (urban heat island, slightly warmer surface temps in Manhattan)
-    //
-    // Realistic range for Central Park: 16-20"
-    // Low end: 16" (some mixing, track slightly offshore)
-    // High end: 20" (full verification of NWS airport guidance)
-    // Median: 18" (center of NWS airport range, slight CP reduction)
-    nwsLow: 16,
+    // Central Park calibration from NWS + market data:
+    // - NWS airports: 18-22" but NBM snow ratios "consistently too high"
+    // - Kalshi market implies median ~15" (>15" trading at ~48%)
+    // - Market-implied distribution: 10th pctile ~8", median ~15", 90th ~22"
+    nwsLow: 12,
     nwsHigh: 20,
-    nwsMedian: 18,
+    nwsMedian: 16,
 
     // Mixing risk is LOW for this event
     // Cold air locked in, all-snow event expected
