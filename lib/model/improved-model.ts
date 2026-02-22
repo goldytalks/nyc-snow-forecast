@@ -283,64 +283,59 @@ export function calculatePolymarketProbabilities(
  * - Polymarket: NOAA "New Snow (IN)" for NY-Central Park Area
  *   URL: https://www.weather.gov/wrh/climate?wfo=okx
  *
- * Key NWS guidance (as of Feb 21, 2026):
+ * Key NWS guidance (as of Feb 22, 2026 morning):
  * - BLIZZARD WARNING in effect for NYC (Feb 22-23)
- * - NWS forecasts 6-10" for NYC metro area
+ * - NWS AFD (10:47 AM): 18-22" for JFK/LGA/EWR, "1 to 2 ft across tri-state"
  * - Snowfall rates 1-2 inches per hour expected
- * - Winds 20-35 mph with gusts to 45 mph (blizzard criteria)
- * - Storm timing: Sunday morning through Monday afternoon
- * - Models coming into better agreement, trending toward higher end
+ * - Storm bulk: 7pm tonight through 7am Monday
+ * - Currently: light snow just beginning at Central Park
+ * - CLINYC reports 0.0" snowfall for Feb 21 — storm hasn't started
  *
- * Market context (for reference only - NOT for calibration):
- * - Kalshi pricing: ~72% for >10", ~61% for >12", ~37% for >15"
- * - Implied expectation: ~13.9" (SIGNIFICANTLY above NWS 6-10" guidance)
- * - Market appears bullish vs NWS official guidance
+ * RESOLUTION SOURCE (CRITICAL):
+ * Kalshi settles on CLINYC (NWS Daily Climate Report for Central Park)
+ * Total snowfall Feb 21-24, 2026 — "strictly greater than" threshold
+ * CLINYC URL: forecast.weather.gov/product.php?site=OKX&product=CLI&issuedby=NYC
  *
  * CALIBRATION APPROACH:
- * We anchor to NWS guidance since that's the resolution source.
- * However, blizzard warnings suggest NWS has high confidence.
- * Models trending toward coast = higher totals for Central Park.
+ * Anchor to NWS guidance for NYC airports (18-22") as proxy for Central Park.
+ * Central Park may get slightly less than airport stations (urban heat island)
+ * but the difference is typically small (1-2").
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // Central Park specific forecast (NWS OKX guidance)
+    // Central Park specific forecast (NWS OKX guidance as of Feb 22 AM)
     //
-    // NWS text guidance: "8-12 inches" for NYC/Central Park area
-    // BUT: BLIZZARD WARNING issued = NWS has HIGH confidence in significant event
-    // Blizzard criteria: sustained 35mph+ winds AND visibility <1/4 mi for 3+ hours
-    // This typically implies >10" of snow for it to meet visibility criterion
+    // NWS AFD (Feb 22, 10:47 AM): 18-22" for JFK/LGA/EWR
+    // "1 to 2 ft across the tri-state"
+    // Storm bulk: 7pm tonight through 7am Monday
     //
-    // Model trends (GFS/ECMWF/NAM all converging):
-    // - Storm track trending coastward = more snow for NYC
-    // - 850mb temperatures remain cold enough for all-snow
-    // - Snowfall rates 1-2"/hr expected = efficient snow generation
-    // - Multiple hours of banding likely over metro area
+    // Central Park adjustment: -1 to -2" vs airport stations
+    // (urban heat island, slightly warmer surface temps in Manhattan)
     //
-    // Realistic calibration: 10-16" range for Central Park
-    // Low end: 10" (NWS high end, if storm slightly offshore)
-    // High end: 16" (models trending higher, banding over city)
-    // Median: 12" (blizzard warning confidence + coastal correction)
-    nwsLow: 10,
-    nwsHigh: 16,
-    nwsMedian: 12,
+    // Realistic range for Central Park: 16-20"
+    // Low end: 16" (some mixing, track slightly offshore)
+    // High end: 20" (full verification of NWS airport guidance)
+    // Median: 18" (center of NWS airport range, slight CP reduction)
+    nwsLow: 16,
+    nwsHigh: 20,
+    nwsMedian: 18,
 
     // Mixing risk is LOW for this event
     // Cold air locked in, all-snow event expected
-    // No significant mixing or warm-nose mentioned in any guidance
+    // AFD confirms no significant mixing concerns
     mixingRisk: "low",
 
-    // Track uncertainty is LOW-MEDIUM
-    // Models coming into strong agreement per NWS AFD
-    // Blizzard warning issuance = NWS confident in solution
-    // "Slight wobbles" still possible but diminishing
-    trackUncertainty: "medium",
+    // Track uncertainty is LOW
+    // Models in strong agreement, blizzard warning issued
+    // NWS has high confidence
+    trackUncertainty: "low",
 
-    // OBSERVED: Storm hasn't started yet (as of Feb 21 morning)
-    // Pre-storm period - 0" accumulation
+    // OBSERVED: 0.0" as of CLINYC Feb 21 report
+    // Light snow just beginning at Central Park (Feb 22 morning)
+    // Trace amounts at most so far
     observedSnowfall: 0.0,
 
     // Model spread narrowing as models converge
-    // GFS/ECMWF/NAM all showing coastal-heavy solution
     modelSpread: 3,
   };
 }

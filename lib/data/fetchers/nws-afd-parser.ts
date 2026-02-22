@@ -170,10 +170,14 @@ export function parseAFD(afdText: string, issuanceTime?: string | null): AFDExtr
     }
   }
 
-  // Use the widest range found (most inclusive)
+  // Use the MEDIAN range found (avoid picking up regional extremes)
+  // The widest range picks up worst-case/inland numbers that don't apply to Central Park
   if (allSnowMatches.length > 0) {
-    extraction.snowfallRange.low = Math.min(...allSnowMatches.map(m => m.low));
-    extraction.snowfallRange.high = Math.max(...allSnowMatches.map(m => m.high));
+    const sortedLows = allSnowMatches.map(m => m.low).sort((a, b) => a - b);
+    const sortedHighs = allSnowMatches.map(m => m.high).sort((a, b) => a - b);
+    const midIdx = Math.floor(sortedLows.length / 2);
+    extraction.snowfallRange.low = sortedLows[midIdx];
+    extraction.snowfallRange.high = sortedHighs[midIdx];
   }
 
   // Extract localized maximum

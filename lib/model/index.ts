@@ -122,18 +122,24 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   const rawLow = data.combined.snowfallRange.low;
   const rawHigh = data.combined.snowfallRange.high;
 
-  // Apply coastal correction - Central Park won't hit inland totals
-  // NWS explicitly says "around 10 inches near the coast" for NYC
-  const coastalCorrectionFactor = 0.85; // 15% reduction for coastal vs inland
-  const adjustedHigh = Math.min(rawHigh, rawLow + (rawHigh - rawLow) * coastalCorrectionFactor);
+  // Sanity check: AFD parser picks up regional/tri-state numbers
+  // NWS AFD (Feb 22): 18-22" for NYC airports is the best CP proxy.
+  // Cap at reasonable Central Park values to avoid inflated forecasts.
+  const cappedLow = Math.min(rawLow, 16);   // CP low-end capped at 16"
+  const cappedHigh = Math.min(rawHigh, 22);  // CP high-end capped at 22" (NWS airport high)
 
-  // Central Park observed snowfall as of Feb 21 (from climate report)
-  const observedSnowfall = 0.3;
+  // Mild coastal correction for Central Park vs surrounding areas
+  const coastalCorrectionFactor = 0.95;
+  const adjustedHigh = Math.min(cappedHigh, cappedLow + (cappedHigh - cappedLow) * coastalCorrectionFactor);
+
+  // Central Park observed snowfall - CLINYC reports 0.0" for Feb 21
+  // Storm just beginning Feb 22 morning (light snow/trace)
+  const observedSnowfall = 0.0;
 
   const conditions = {
-    nwsLow: rawLow,
+    nwsLow: cappedLow,
     nwsHigh: adjustedHigh,
-    nwsMedian: Math.round(((rawLow + adjustedHigh) / 2) * 10) / 10,
+    nwsMedian: Math.round(((cappedLow + adjustedHigh) / 2) * 10) / 10,
     // Central Park has HIGHER mixing risk (coastal location)
     mixingRisk: "medium" as const, // Always medium+ for coastal
     trackUncertainty: "medium" as const,
