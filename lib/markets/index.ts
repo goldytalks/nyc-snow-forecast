@@ -61,7 +61,7 @@ export interface EdgeOpportunity {
   modelProb: number;
   marketProb: number;
   edge: number;
-  direction: "BUY_YES" | "BUY_NO";
+  direction: "BUY_YES" | "BUY_NO" | "NO_EDGE";
   confidence: "HIGH" | "MEDIUM" | "LOW";
   source: "kalshi" | "polymarket";
   expectedValue: number;
@@ -123,7 +123,7 @@ export function calculateEdgeOpportunities(
   marketData: MarketData
 ): EdgeOpportunity[] {
   const edges: EdgeOpportunity[] = [];
-  const EDGE_THRESHOLD = 0.05; // 5% minimum edge
+  const EDGE_THRESHOLD = 0.00; // Include all edges so model/edge always displays
 
   // Process Kalshi strike markets
   for (const market of marketData.kalshi.markets) {
@@ -144,7 +144,7 @@ export function calculateEdgeOpportunities(
         modelProb,
         marketProb,
         edge,
-        direction: edge > 0 ? "BUY_YES" : "BUY_NO",
+        direction: Math.abs(edge) >= 0.03 ? (edge > 0 ? "BUY_YES" : "BUY_NO") : "NO_EDGE",
         confidence: getConfidence(edge),
         source: "kalshi",
         expectedValue: calculateEV(edge, marketProb),
@@ -176,7 +176,7 @@ export function calculateEdgeOpportunities(
     const marketProb = market.yesPrice;
     const edge = modelProb - marketProb;
 
-    if (Math.abs(edge) >= EDGE_THRESHOLD) {
+    {
       const range =
         market.rangeType === "under"
           ? `<${market.rangeHigh}"`
@@ -190,7 +190,7 @@ export function calculateEdgeOpportunities(
         modelProb,
         marketProb,
         edge,
-        direction: edge > 0 ? "BUY_YES" : "BUY_NO",
+        direction: Math.abs(edge) >= 0.03 ? (edge > 0 ? "BUY_YES" : "BUY_NO") : "NO_EDGE",
         confidence: getConfidence(edge),
         source: "polymarket",
         expectedValue: calculateEV(edge, marketProb),

@@ -705,9 +705,17 @@ export function MarketAnalysis({ strikeProbabilities }: MarketAnalysisProps) {
                       <PolymarketMarketRow
                         key={market.id}
                         market={market}
-                        edge={polymarketEdges.find((e) =>
-                          market.question.toLowerCase().includes(e.market.toLowerCase().replace(/[<>+"]/g, ""))
-                        )}
+                        edge={polymarketEdges.find((e) => {
+                          // Match by range string or by checking question for range numbers
+                          const eRange = (e.range || e.market || "").replace(/[<>+"Polymarket ]/g, "").trim();
+                          const mQuestion = market.question.toLowerCase();
+                          // Try direct range match first
+                          if (eRange && mQuestion.includes(eRange.toLowerCase())) return true;
+                          // Match range numbers (e.g., "8-10" in question)
+                          const nums = eRange.match(/(\d+)/g);
+                          if (nums && nums.every(n => mQuestion.includes(n))) return true;
+                          return false;
+                        })}
                       />
                     ))
                   : polymarketEdges.map((edge) => (
