@@ -123,18 +123,21 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   const rawHigh = data.combined.snowfallRange.high;
 
   // Sanity check: AFD parser picks up regional/tri-state numbers
-  // NWS airports say 18-22" but CP historically underperforms vs NWS by 15-20%
-  // Cap to realistic Central Park range
-  const cappedLow = Math.min(rawLow, 12);   // CP low-end capped at 12"
-  const cappedHigh = Math.min(rawHigh, 20);  // CP high-end capped at 20"
+  // NWS AFD (Feb 22, 3:32 PM): "20-24 inches for NYC" — upgraded
+  // But NWS historically overpredicts by ~15-20% for CP
+  // Cap to CP-adjusted range
+  const cappedLow = Math.min(rawLow, 16);   // CP low-end capped at 16"
+  const cappedHigh = Math.min(rawHigh, 24);  // CP high-end capped at 24"
 
   // Mild coastal correction for Central Park vs surrounding areas
   const coastalCorrectionFactor = 0.95;
   const adjustedHigh = Math.min(cappedHigh, cappedLow + (cappedHigh - cappedLow) * coastalCorrectionFactor);
 
-  // Central Park observed snowfall - CLINYC reports 0.0" for Feb 21
-  // Storm just beginning Feb 22 morning (light snow/trace)
-  const observedSnowfall = 0.0;
+  // Central Park observed snowfall
+  // CLINYC Feb 21: 0.0" (storm hadn't started)
+  // Light snow falling since morning Feb 22, ~1-2" accumulated by 4pm
+  // Heavy snow phase starting ~7pm
+  const observedSnowfall = 1.5;
 
   const conditions = {
     nwsLow: cappedLow,
@@ -202,10 +205,10 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
       nam: { value: data.modelEstimates.nam, trend: "steady" },
     },
     keyUncertainties: [
-      `Central Park forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" (from NWS airport guidance 18-22")`,
-      `NWS AFD: "highest totals along the coast" — CP should match airports`,
-      `Mixing risk: ${conditions.mixingRisk} (early rain/snow mix at 35-36°F)`,
-      `Observed snowfall: ${conditions.observedSnowfall}" — storm just starting`,
+      `Central Park forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" (NWS AFD 3:32 PM: 20-24" for NYC)`,
+      `NWS: "Isolated 30 inches possible in heaviest banding, mainly along coast"`,
+      `Storm active: ~${conditions.observedSnowfall}" so far, heavy snow starts ~7pm`,
+      `Snowfall rates: 2-3"/hr expected in heavy bands, blizzard conditions overnight`,
       `Resolution: CLINYC daily climate report (Central Park)`,
     ],
     timing: {

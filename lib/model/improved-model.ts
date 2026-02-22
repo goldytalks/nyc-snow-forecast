@@ -120,24 +120,28 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
 
   // CENTRAL PARK CALIBRATED scenario probabilities
-  // NWS AFD (Feb 22): 18-22" for NYC airports, "highest totals along coast"
-  // BUT: Market is pricing >15" at only ~48% — significant skepticism
-  // Mixing at 35-36°F early + NWS historically overpredicts for CP
-  // NBM snow ratios "consistently too high" per NWS's own AFD
+  // NWS AFD (Feb 22, 3:32 PM): "20-24 inches for NYC and Long Island"
+  // "Isolated 30 inches possible in heaviest banding, mainly along coast"
+  // Storm is ACTIVELY HAPPENING — heavy snow phase imminent (~7pm)
+  // 2-3"/hr rates expected, blizzard conditions through Monday AM
+  // Market: >15" at 58-59c, >24" at 10-11c
 
   // Scenario 1: NWS Forecast Verifies (base case)
-  // Blizzard warning = high confidence event, base case dominates
-  const baseCaseProb = 0.50;
+  // Storm is happening, NWS very confident, base case dominates
+  const baseCaseProb = 0.48;
 
-  // Scenario 2: High-End (banding, high SLR)
+  // Scenario 2: High-End (banding, 30" possible per NWS)
+  // NWS explicitly mentions 30" possible along coast = CP
   const highEndProb = mixingRisk === "high" ? 0.05 :
-                      mixingRisk === "medium" ? 0.10 : 0.13;
+                      mixingRisk === "medium" ? 0.08 : 0.12;
 
-  // Scenario 3: Moderate underperformance (mixing eats some totals)
+  // Scenario 3: Moderate underperformance (lower ratios, less banding)
+  // NWS historically overpredicts — significant probability of 12-16" instead of 20-24"
   const mixingProb = mixingRisk === "high" ? 0.28 :
-                     mixingRisk === "medium" ? 0.22 : 0.20;
+                     mixingRisk === "medium" ? 0.24 : 0.22;
 
-  // Scenario 4: Significant underperformance (track miss, bust)
+  // Scenario 4: Significant underperformance (dry slot, unexpected mixing)
+  // Less likely since storm is underway, but NWS can still significantly miss
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
 
   return [
@@ -152,27 +156,29 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      // Banding over city, high SLR — but NWS notes NBM ratios too high
-      mean: remainingHigh + 2 + observedSnowfall,
-      stdDev: 2.5,
-      description: "Optimal track, banding over city, high ratios",
+      // NWS says "isolated 30 inches possible" along coast
+      // Banding over city, high SLR, 2-3"/hr rates sustained
+      mean: remainingHigh + 4 + observedSnowfall,
+      stdDev: 3.0,
+      description: "Banding over city, 30\" possible per NWS",
     },
     {
       name: "Moderate Underperformance",
       probability: mixingProb,
-      // Mixing eats some totals, NWS overpredicts by ~20%
-      // With blizzard warning, storm still delivers 10-12"
-      mean: Math.max(remainingLow - 1, 8) + observedSnowfall,
+      // Storm delivers but at lower end — 14-16" instead of 20-24"
+      // Lower SLR or less banding than forecast
+      mean: Math.max(remainingLow * 0.85, 12) + observedSnowfall,
       stdDev: 2.0,
-      description: "More mixing/lower ratios than forecast, reduced totals",
+      description: "Lower ratios/less banding than forecast, 14-16\" range",
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      // Track shifts or dry slot — still snows but well short of forecast
-      mean: Math.max(remainingLow * 0.6, 5) + observedSnowfall,
+      // Unexpected dry slot or mixing — still snows but well short
+      // Floor is ~8-10" since storm is underway and can't fully bust
+      mean: Math.max(remainingLow * 0.6, 8) + observedSnowfall,
       stdDev: 2.5,
-      description: "Track miss, dry slot, or bust",
+      description: "Dry slot or unexpected mixing, well short of forecast",
     },
   ];
 }
@@ -281,13 +287,14 @@ export function calculatePolymarketProbabilities(
  * - Polymarket: NOAA "New Snow (IN)" for NY-Central Park Area
  *   URL: https://www.weather.gov/wrh/climate?wfo=okx
  *
- * Key NWS guidance (as of Feb 22, 2026 morning):
+ * Key NWS guidance (as of Feb 22, 2026 3:32 PM):
  * - BLIZZARD WARNING in effect for NYC (Feb 22-23)
- * - NWS AFD (10:47 AM): 18-22" for JFK/LGA/EWR, "1 to 2 ft across tri-state"
- * - Snowfall rates 1-2 inches per hour expected
- * - Storm bulk: 7pm tonight through 7am Monday
- * - Currently: light snow just beginning at Central Park
- * - CLINYC reports 0.0" snowfall for Feb 21 — storm hasn't started
+ * - NWS AFD (3:32 PM): "20 to 24 inches for NYC and Long Island"
+ * - "Isolated 30 inches possible in heaviest banding, mainly along coast"
+ * - Snowfall rates 2-3 inches per hour expected in heavy bands
+ * - Storm bulk: 7pm tonight through Monday morning
+ * - Currently: light snow falling, ~1-2" accumulated, heavy snow imminent
+ * - CLINYC Feb 21: 0.0" (storm hadn't started)
  *
  * RESOLUTION SOURCE (CRITICAL):
  * Kalshi settles on CLINYC (NWS Daily Climate Report for Central Park)
@@ -295,43 +302,44 @@ export function calculatePolymarketProbabilities(
  * CLINYC URL: forecast.weather.gov/product.php?site=OKX&product=CLI&issuedby=NYC
  *
  * CALIBRATION APPROACH:
- * Anchor to NWS guidance for NYC airports (18-22") as proxy for Central Park.
- * Central Park may get slightly less than airport stations (urban heat island)
- * but the difference is typically small (1-2").
+ * NWS AFD upgraded to 20-24" for NYC, but NWS historically overpredicts by ~15-20%.
+ * Apply ~10% discount: 14-22" range for Central Park with median ~18".
+ * Market-implied median ~16-17" — model anchors between NWS and market.
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // Central Park specific forecast (NWS OKX guidance as of Feb 22 AM)
+    // Central Park specific forecast (NWS OKX guidance as of Feb 22 PM)
     //
-    // NWS AFD (Feb 22, 10:47 AM): 18-22" for JFK/LGA/EWR
-    // "1 to 2 ft across the tri-state"
-    // Storm bulk: 7pm tonight through 7am Monday
+    // NWS AFD (Feb 22, 3:32 PM): "20 to 24 inches of snow for NYC and Long Island"
+    // "Isolated readings of 30 inches possible in heaviest banding, mainly along coast"
+    // Snowfall rates 2-3 inches per hour expected in heavy bands
+    // Storm bulk: 7pm tonight through Monday morning
+    // Currently: light snow falling, heavy snow starts ~7pm
     //
-    // Central Park calibration from NWS + market data:
-    // - NWS airports: 18-22" but NBM snow ratios "consistently too high"
-    // - Kalshi market implies median ~15" (>15" trading at ~48%)
-    // - Market-implied distribution: 10th pctile ~8", median ~15", 90th ~22"
-    nwsLow: 12,
-    nwsHigh: 20,
-    nwsMedian: 16,
+    // NWS says 20-24" but historically overpredicts by ~15-20%
+    // Market-implied median ~16-17" (>15" at 58.5c, >20" would be ~30-35c)
+    // Split the difference: anchor to 14-22" for Central Park
+    nwsLow: 14,
+    nwsHigh: 22,
+    nwsMedian: 18,
 
     // Mixing risk is LOW for this event
     // Cold air locked in, all-snow event expected
-    // AFD confirms no significant mixing concerns
+    // 31°F at Central Park, dropping further tonight
     mixingRisk: "low",
 
-    // Track uncertainty is LOW
-    // Models in strong agreement, blizzard warning issued
-    // NWS has high confidence
+    // Track uncertainty is VERY LOW
+    // Storm is actively happening, blizzard warning in effect
+    // NWS has very high confidence — white-out conditions expected
     trackUncertainty: "low",
 
-    // OBSERVED: 0.0" as of CLINYC Feb 21 report
-    // Light snow just beginning at Central Park (Feb 22 morning)
-    // Trace amounts at most so far
-    observedSnowfall: 0.0,
+    // OBSERVED: ~1-2" as of 4pm Feb 22
+    // Light snow since morning, heavy snow starts ~7pm
+    // CLINYC Feb 21 report: 0.0" (storm hadn't started)
+    observedSnowfall: 1.5,
 
-    // Model spread narrowing as models converge
-    modelSpread: 3,
+    // Model spread minimal — storm is happening
+    modelSpread: 2,
   };
 }
 
