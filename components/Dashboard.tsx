@@ -49,10 +49,10 @@ export function Dashboard({ initialData }: DashboardProps) {
             />
             <Link
               href="/model-notes"
-              className="p-2 rounded-md hover:bg-muted transition-colors"
-              title="Model Notes"
+              className="px-3 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 transition-colors flex items-center gap-2 text-sm text-emerald-400"
             >
-              <FileText className="w-4 h-4 text-muted-foreground" />
+              <FileText className="w-4 h-4" />
+              Model Notes
             </Link>
             <button
               onClick={refresh}
