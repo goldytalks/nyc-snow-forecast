@@ -313,12 +313,21 @@ export function calculatePolymarketProbabilities(
  * - Kalshi >18" at 98-99¢, >20" at 82¢, >24" at 9¢
  */
 export function getCurrentConditions(data?: UnifiedForecastData): CurrentConditions {
-  // Use live observed snowfall if available, otherwise hardcoded fallback
-  const observedSnowfall = data?.observedSnowfall?.totalInches ?? 19.5;
+  // HARD FLOOR: NWS confirmed 15.1" at 7 AM Feb 23, storm continued through afternoon.
+  // CLI/CF6 reports lag (Feb 23 CLI won't exist until after midnight), so live fetchers
+  // may return incomplete data (e.g. only Feb 22's 8.8"). Never go below known truth.
+  const OBSERVED_FLOOR = 19.5; // 15.1" at 7AM + ~4" more through afternoon
+  const NWS_LOW_FLOOR = 18;
+  const NWS_HIGH_FLOOR = 24;
+
+  // Use live observed snowfall if available AND it exceeds our known floor
+  const liveObserved = data?.observedSnowfall?.totalInches ?? 0;
+  const observedSnowfall = Math.max(liveObserved, OBSERVED_FLOOR);
 
   // Derive NWS range: observed is the natural floor, remaining snow adds upside
-  const nwsLow = Math.max(data?.combined?.snowfallRange?.low ?? 18, observedSnowfall + 0.5);
-  const nwsHigh = Math.max(data?.combined?.snowfallRange?.high ?? 24, observedSnowfall + 3);
+  // Also enforce absolute minimums since NWS API returns REMAINING snow (not total)
+  const nwsLow = Math.max(data?.combined?.snowfallRange?.low ?? NWS_LOW_FLOOR, observedSnowfall + 0.5, NWS_LOW_FLOOR);
+  const nwsHigh = Math.max(data?.combined?.snowfallRange?.high ?? NWS_HIGH_FLOOR, observedSnowfall + 3, NWS_HIGH_FLOOR);
   const nwsMedian = Math.round(((nwsLow + nwsHigh) / 2) * 10) / 10;
 
   return {
