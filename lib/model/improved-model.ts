@@ -102,6 +102,15 @@ export interface CurrentConditions {
 
   // Expected additional snow on Feb 24 (counts for Kalshi but not Polymarket)
   feb24Expected: number;
+
+  // CLINYC measurement bias: ratio of official CLINYC total to "true" snowfall
+  // >1.0 means CLINYC reads higher (6-hr board clearing captures pre-compaction snow)
+  // <1.0 means CLINYC reads lower (wind undercatch at exposed Belvedere Castle site)
+  // For a high-wind blizzard, wind undercatch (10-30%) likely dominates the
+  // compaction benefit (~5-15%), net effect is slight undermeasurement
+  measurementBias: number;
+  // Additional measurement uncertainty (stddev of the bias, in inches)
+  measurementUncertainty: number;
 }
 
 /**
@@ -117,7 +126,7 @@ export interface CurrentConditions {
  * - Upside capped compared to inland locations
  */
 export function generateImprovedScenarios(conditions: CurrentConditions): ImprovedScenario[] {
-  const { nwsLow, nwsHigh, nwsMedian, mixingRisk, observedSnowfall } = conditions;
+  const { nwsLow, nwsHigh, nwsMedian, observedSnowfall, measurementBias, measurementUncertainty } = conditions;
 
   // Remaining expected snow after observed
   const remainingMedian = Math.max(0, nwsMedian - observedSnowfall);
@@ -125,52 +134,66 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
 
   // CENTRAL PARK CALIBRATED scenario probabilities
-  // As of Feb 23 ~11 AM: ~17.8" estimated on ground, storm still producing
+  // As of Feb 23 afternoon: ~19.5" estimated on ground, storm still producing
   // Kalshi >18" at 98-99¢, >20" at 82¢ — market treats >18" as nearly certain
   // Bust/underperformance scenarios are now near-impossible
 
-  // Scenario 1: Base case — observed ~17.8" + 1-2" remaining = ~19.5"
+  // Scenario 1: Base case — observed + moderate remaining
   const baseCaseProb = 0.55;
 
-  // Scenario 2: High-end — continued heavy banding pushes to 22-24"
+  // Scenario 2: High-end — continued heavy banding
   const highEndProb = 0.20;
 
-  // Scenario 3: Quick taper — storm winds down fast, ~18-19" total
+  // Scenario 3: Quick taper — storm winds down fast
   const taperProb = 0.20;
 
-  // Scenario 4: Slight underperformance — observed is final total + trace
+  // Scenario 4: Slight underperformance — observed is nearly final total
   const bustProb = 1 - baseCaseProb - highEndProb - taperProb;
+
+  // MEASUREMENT ADJUSTMENT: Kalshi/Polymarket settle on CLINYC, not "true" snowfall.
+  // The CLINYC measurement has systematic biases:
+  //   - 6-hr board clearing: captures pre-compaction snow (+5-10%)
+  //   - Wind undercatch at exposed Belvedere Castle: loses snow in high winds (-10-20%)
+  //   - Net: ~7% undermeasurement in a high-wind blizzard (measurementBias = 0.93)
+  // Apply bias to scenario means and add measurement uncertainty to stddev.
+  const applyMeasurement = (trueMean: number, trueStdDev: number) => ({
+    mean: Math.round(trueMean * measurementBias * 10) / 10,
+    stdDev: Math.round(Math.sqrt(trueStdDev ** 2 + measurementUncertainty ** 2) * 10) / 10,
+  });
+
+  const baseCase = applyMeasurement(remainingMedian + observedSnowfall, Math.max((remainingHigh - remainingLow) / 3.5, 1.5));
+  const highEnd = applyMeasurement(remainingHigh + observedSnowfall, 2.5);
+  const taper = applyMeasurement(Math.max(observedSnowfall + remainingLow * 0.5, observedSnowfall + 0.5), 1.5);
+  const bust = applyMeasurement(Math.max(observedSnowfall + 0.2, observedSnowfall), 1.0);
 
   return [
     {
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
-      mean: remainingMedian + observedSnowfall,
-      stdDev: Math.max((remainingHigh - remainingLow) / 3.5, 1.5),
-      description: `Observed ${observedSnowfall}" + moderate remaining = ~${nwsMedian}" total`,
+      mean: baseCase.mean,
+      stdDev: baseCase.stdDev,
+      description: `CLINYC measured: ~${baseCase.mean}" (true ~${nwsMedian}" x ${measurementBias} bias)`,
     },
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      mean: remainingHigh + observedSnowfall,
-      stdDev: 2.5,
-      description: `Continued banding, observed ${observedSnowfall}" + strong remaining = ~${Math.round(remainingHigh + observedSnowfall)}" total`,
+      mean: highEnd.mean,
+      stdDev: highEnd.stdDev,
+      description: `CLINYC measured: ~${highEnd.mean}" (true ~${Math.round(remainingHigh + observedSnowfall)}" x ${measurementBias} bias)`,
     },
     {
       name: "Quick Taper",
       probability: taperProb,
-      // Storm winds down quickly, just a trace more
-      mean: Math.max(observedSnowfall + remainingLow * 0.5, observedSnowfall + 0.5),
-      stdDev: 1.5,
-      description: `Storm tapers fast, ~${Math.round(observedSnowfall + remainingLow * 0.5)}" total`,
+      mean: taper.mean,
+      stdDev: taper.stdDev,
+      description: `CLINYC measured: ~${taper.mean}" (storm tapers fast)`,
     },
     {
       name: "Slight Underperformance",
       probability: bustProb,
-      // Observed total + trace — can't go below what's already fallen
-      mean: Math.max(observedSnowfall + 0.2, observedSnowfall),
-      stdDev: 1.0,
-      description: `Storm done, ~${observedSnowfall}" observed + trace`,
+      mean: bust.mean,
+      stdDev: bust.stdDev,
+      description: `CLINYC measured: ~${bust.mean}" (storm done + trace)`,
     },
   ];
 }
@@ -349,6 +372,15 @@ export function getCurrentConditions(data?: UnifiedForecastData): CurrentConditi
     // Feb 24 expected: trace possibility (~85% chance of 0.0", storm ends by ~6 PM Feb 23)
     // Kalshi includes Feb 24, Polymarket does not
     feb24Expected: 0.5,
+
+    // CLINYC measurement bias for this storm:
+    // Compaction benefit: +5-10% (6-hr board clearing captures pre-compaction snow)
+    // Wind undercatch: -10-20% (Belvedere Castle is exposed hilltop, 50+ mph gusts)
+    // Net: ~5-10% undermeasurement in a high-wind blizzard
+    // 0.93 means CLINYC will report ~93% of "true" snowfall
+    measurementBias: 0.93,
+    // Uncertainty in the measurement itself (~1" stddev)
+    measurementUncertainty: 1.0,
   };
 }
 

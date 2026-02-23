@@ -189,9 +189,10 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     keyUncertainties: [
       `Observed snowfall: ${conditions.observedSnowfall}" (source: ${data.observedSnowfall?.source ?? 'hardcoded'}, updated: ${data.observedSnowfall?.lastUpdated ?? 'N/A'})`,
       `Daily breakdown: ${data.observedSnowfall?.dailyBreakdown ? Object.entries(data.observedSnowfall.dailyBreakdown).map(([d, v]) => `${d}: ${v}"`).join(', ') : 'N/A'}`,
-      `Total forecast range: ${conditions.nwsLow}-${conditions.nwsHigh}" (observed + remaining)`,
-      `Kalshi (Feb 21-24, 4 days): settles on CLINYC, "strictly greater than" thresholds`,
-      `Polymarket (Feb 21-23, 3 days): settles on NOAA "New Snow (IN)", bracket-based — EXCLUDES Feb 24`,
+      `CLINYC measurement bias: ${conditions.measurementBias}x (wind undercatch -10-20% vs compaction benefit +5-10%)`,
+      `Measurement uncertainty: ±${conditions.measurementUncertainty}" added to scenario stddevs`,
+      `Kalshi settles on CLINYC (Feb 21-24, 4 days) — final reports ~1:30 AM each night, settlement expected Feb 26`,
+      `Polymarket settles on NOAA (Feb 21-23, 3 days) — bracket-based, EXCLUDES Feb 24`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",
