@@ -235,7 +235,7 @@ export function calculateBucketProbability(
 export function calculateKalshiProbabilities(
   scenarios: ImprovedScenario[]
 ): Record<string, number> {
-  const thresholds = [2, 3, 4, 5, 6, 8, 10, 12, 14, 15, 16, 18, 20, 24];
+  const thresholds = [2, 3, 4, 5, 6, 8, 10, 12, 14, 15, 16, 18, 20, 22, 24];
   const result: Record<string, number> = {};
 
   for (const threshold of thresholds) {

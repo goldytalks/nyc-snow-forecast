@@ -36,11 +36,15 @@ export const KALSHI_PRICES: MarketPrice[] = [
   { threshold: 3, yesPrice: 99, source: "kalshi" },
   { threshold: 4, yesPrice: 99, source: "kalshi" },
   { threshold: 5, yesPrice: 99, source: "kalshi" },
-  { threshold: 6, yesPrice: 98, source: "kalshi" },
-  { threshold: 8, yesPrice: 96, source: "kalshi" },
-  { threshold: 10, yesPrice: 91, source: "kalshi" },
-  { threshold: 12, yesPrice: 85, source: "kalshi" },
-  { threshold: 15, yesPrice: 70, source: "kalshi" },
+  { threshold: 6, yesPrice: 99, source: "kalshi" },
+  { threshold: 8, yesPrice: 99, source: "kalshi" },
+  { threshold: 10, yesPrice: 99, source: "kalshi" },
+  { threshold: 12, yesPrice: 99, source: "kalshi" },
+  { threshold: 15, yesPrice: 99, source: "kalshi" },
+  { threshold: 18, yesPrice: 98, source: "kalshi" },
+  { threshold: 20, yesPrice: 82, source: "kalshi" },
+  { threshold: 22, yesPrice: 45, source: "kalshi" },
+  { threshold: 24, yesPrice: 9, source: "kalshi" },
 ];
 
 // ============================================

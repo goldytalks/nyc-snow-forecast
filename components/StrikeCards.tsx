@@ -7,7 +7,7 @@ interface StrikeCardsProps {
   strikeProbabilities: Record<string, number>;
 }
 
-const DISPLAY_STRIKES = ["4", "8", "12", "15", "18"];
+const DISPLAY_STRIKES = ["15", "18", "20", "22", "24"];
 
 function getColorConfig(percent: number) {
   if (percent >= 75) return {
