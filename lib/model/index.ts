@@ -40,6 +40,15 @@ export interface ForecastOutput {
   // New: Separate probabilities for each market type
   kalshiProbabilities?: Record<string, number>;
   polymarketProbabilities?: Record<string, number>;
+  polymarketDistribution?: {
+    median: number;
+    mean: number;
+    stdDev: number;
+    p10: number;
+    p25: number;
+    p75: number;
+    p90: number;
+  };
   scenarios: Array<{
     name: string;
     probability: number;
@@ -175,6 +184,15 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     strikeProbabilities: kalshiProbs,
     kalshiProbabilities: kalshiProbs,
     polymarketProbabilities: polymarketProbs,
+    polymarketDistribution: {
+      median: Math.round((conditions.nwsMedian - conditions.feb24Expected) * 10) / 10,
+      mean: Math.round(polymarketScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0) * 10) / 10,
+      stdDev: 3.5,
+      p10: Math.round((conditions.nwsLow - 2 - conditions.feb24Expected) * 10) / 10,
+      p25: Math.round((conditions.nwsLow - conditions.feb24Expected) * 10) / 10,
+      p75: Math.round((conditions.nwsHigh - conditions.feb24Expected) * 10) / 10,
+      p90: Math.round((conditions.nwsHigh + 3 - conditions.feb24Expected) * 10) / 10,
+    },
     scenarios: kalshiScenarios.map((s) => ({
       name: s.name,
       probability: Math.round(s.probability * 1000) / 1000,
@@ -363,6 +381,15 @@ export function runForecastModelImproved(): ForecastOutput {
     strikeProbabilities: kalshiProbs,
     kalshiProbabilities: kalshiProbs,
     polymarketProbabilities: polymarketProbs,
+    polymarketDistribution: {
+      median: Math.round((conditions.nwsMedian - conditions.feb24Expected) * 10) / 10,
+      mean: Math.round(polymarketScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0) * 10) / 10,
+      stdDev: 3.5,
+      p10: Math.round((conditions.nwsLow - 2 - conditions.feb24Expected) * 10) / 10,
+      p25: Math.round((conditions.nwsLow - conditions.feb24Expected) * 10) / 10,
+      p75: Math.round((conditions.nwsHigh - conditions.feb24Expected) * 10) / 10,
+      p90: Math.round((conditions.nwsHigh + 3 - conditions.feb24Expected) * 10) / 10,
+    },
     scenarios: kalshiScenarios.map((s) => ({
       name: s.name,
       probability: Math.round(s.probability * 1000) / 1000,

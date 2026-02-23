@@ -123,56 +123,52 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
 
   // CENTRAL PARK CALIBRATED scenario probabilities
-  // As of Feb 23 ~afternoon: storm winding down
-  // CLINYC: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" observed
-  // NWS API now returns REMAINING snowfall (~4-6.85"), not total
-  // nwsLow/nwsHigh/nwsMedian already adjusted to total (observed + remaining)
+  // As of Feb 23 ~11 AM: ~17.8" estimated on ground, storm still producing
+  // Kalshi >18" at 98-99¢, >20" at 82¢ — market treats >18" as nearly certain
+  // Bust/underperformance scenarios are now near-impossible
 
-  // Scenario 1: Base case — observed 8.8" + moderate remaining ~6" = ~15"
-  const baseCaseProb = 0.45;
+  // Scenario 1: Base case — observed ~17.8" + 1-2" remaining = ~19.5"
+  const baseCaseProb = 0.55;
 
-  // Scenario 2: High-end — observed 8.8" + continued heavy banding = ~20"
-  const highEndProb = mixingRisk === "high" ? 0.05 :
-                      mixingRisk === "medium" ? 0.10 : 0.15;
+  // Scenario 2: High-end — continued heavy banding pushes to 22-24"
+  const highEndProb = 0.20;
 
-  // Scenario 3: Moderate underperformance — storm tapers quickly = ~12"
-  const mixingProb = mixingRisk === "high" ? 0.25 :
-                     mixingRisk === "medium" ? 0.22 : 0.20;
+  // Scenario 3: Quick taper — storm winds down fast, ~18-19" total
+  const taperProb = 0.20;
 
-  // Scenario 4: Significant underperformance — storm essentially done = ~10"
-  const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
+  // Scenario 4: Slight underperformance — observed is final total + trace
+  const bustProb = 1 - baseCaseProb - highEndProb - taperProb;
 
   return [
     {
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
       mean: remainingMedian + observedSnowfall,
-      stdDev: Math.max((remainingHigh - remainingLow) / 3.5, 2.0),
-      description: `Observed ${observedSnowfall}" + moderate remaining = ${nwsMedian}" total`,
+      stdDev: Math.max((remainingHigh - remainingLow) / 3.5, 1.5),
+      description: `Observed ${observedSnowfall}" + moderate remaining = ~${nwsMedian}" total`,
     },
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      // Continued heavy banding on Feb 23 adds more than expected
-      mean: remainingHigh + 4 + observedSnowfall,
-      stdDev: 3.0,
-      description: `Continued heavy banding, observed ${observedSnowfall}" + strong remaining`,
+      mean: remainingHigh + observedSnowfall,
+      stdDev: 2.5,
+      description: `Continued banding, observed ${observedSnowfall}" + strong remaining = ~${Math.round(remainingHigh + observedSnowfall)}" total`,
     },
     {
-      name: "Moderate Underperformance",
-      probability: mixingProb,
-      // Storm tapers quickly, only a few more inches
-      mean: Math.max(remainingLow * 0.85, 3) + observedSnowfall,
-      stdDev: 2.0,
-      description: `Storm tapers quickly, ~${Math.round(Math.max(remainingLow * 0.85, 3) + observedSnowfall)}" total`,
-    },
-    {
-      name: "Significant Underperformance",
-      probability: bustProb,
-      // Storm essentially done — just observed total + trace
-      mean: Math.max(observedSnowfall + 1, 9),
+      name: "Quick Taper",
+      probability: taperProb,
+      // Storm winds down quickly, just a trace more
+      mean: Math.max(observedSnowfall + remainingLow * 0.5, observedSnowfall + 0.5),
       stdDev: 1.5,
-      description: `Storm done, ~${observedSnowfall}" observed + trace remaining`,
+      description: `Storm tapers fast, ~${Math.round(observedSnowfall + remainingLow * 0.5)}" total`,
+    },
+    {
+      name: "Slight Underperformance",
+      probability: bustProb,
+      // Observed total + trace — can't go below what's already fallen
+      mean: Math.max(observedSnowfall + 0.2, observedSnowfall),
+      stdDev: 1.0,
+      description: `Storm done, ~${observedSnowfall}" observed + trace`,
     },
   ];
 }
@@ -298,22 +294,23 @@ export function calculatePolymarketProbabilities(
  * - URL: https://www.weather.gov/wrh/climate?wfo=okx
  * - Settlement: Bracket-based. Falls between brackets → resolves to higher bracket.
  *
- * Updated Feb 23 afternoon — storm winding down:
- * - CLINYC: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" observed total
- * - Storm still producing light-moderate snow on Feb 23
- * - NWS API now returns REMAINING snowfall, not total
- * - Model anchors to observed 8.8" + estimated remaining
- * - Total range: 12-20" with median ~15"
+ * Updated Feb 23 ~11 AM — storm still producing, significant accumulation:
+ * - CLINYC Feb 22: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" through Feb 22 report
+ * - Feb 23: Heavy snow continued overnight and morning. Blizzard warning through 6 PM.
+ * - Estimated ~9" additional on Feb 23 so far (based on NWS hourly obs + market pricing)
+ * - Kalshi >18" trading at 98-99¢ = market treats >18" as virtually certain
+ * - Kalshi >20" at 82¢, >24" at 9¢
+ * - Total estimated: 18-22" with median ~19.5"
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // As of Feb 23 ~afternoon: storm winding down
-    // CLINYC: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" observed total
-    // NWS API now returns REMAINING snowfall (~4-6.85"), not total
-    // We set nwsLow/nwsHigh/nwsMedian to TOTAL = observed + remaining estimate
-    nwsLow: 12,     // 8.8 observed + ~3" remaining (conservative)
-    nwsHigh: 20,    // 8.8 observed + ~11" remaining (optimistic, storm still producing)
-    nwsMedian: 15,  // 8.8 observed + ~6" remaining
+    // As of Feb 23 ~11 AM: storm still producing, estimated ~17.8" on ground
+    // CLINYC Feb 22 report: 8.8" (0.0 Feb 21 + 8.8 Feb 22)
+    // Feb 23 estimated: ~9" additional (heavy snow overnight + morning banding)
+    // Total on ground: ~17.8" with storm still going
+    nwsLow: 18,     // Near-certain floor given accumulation + remaining
+    nwsHigh: 24,    // Continued banding could push to 24"
+    nwsMedian: 19.5, // Best estimate: ~17.8 observed + 1-2" remaining today
 
     // Mixing risk is LOW — all-snow event confirmed
     mixingRisk: "low",
@@ -321,10 +318,11 @@ export function getCurrentConditions(): CurrentConditions {
     // Track uncertainty is LOW — storm nearly over, observed data dominates
     trackUncertainty: "low",
 
-    // OBSERVED: CLINYC reports: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" total
-    observedSnowfall: 8.8,
+    // OBSERVED: CLINYC 8.8" through Feb 22 + estimated ~9" Feb 23 morning
+    // Feb 23 CLINYC report won't publish until Feb 24, so this is an estimate
+    observedSnowfall: 17.8,
 
-    // Model spread minimal — storm winding down
+    // Model spread minimal — storm nearly over
     modelSpread: 2,
 
     // Feb 24 expected: trace possibility (~85% chance of 0.0", storm ends by ~6 PM Feb 23)
