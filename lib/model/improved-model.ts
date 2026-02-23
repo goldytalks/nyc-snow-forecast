@@ -294,23 +294,28 @@ export function calculatePolymarketProbabilities(
  * - URL: https://www.weather.gov/wrh/climate?wfo=okx
  * - Settlement: Bracket-based. Falls between brackets → resolves to higher bracket.
  *
- * Updated Feb 23 ~11 AM — storm still producing, significant accumulation:
- * - CLINYC Feb 22: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" through Feb 22 report
- * - Feb 23: Heavy snow continued overnight and morning. Blizzard warning through 6 PM.
- * - Estimated ~9" additional on Feb 23 so far (based on NWS hourly obs + market pricing)
- * - Kalshi >18" trading at 98-99¢ = market treats >18" as virtually certain
- * - Kalshi >20" at 82¢, >24" at 9¢
- * - Total estimated: 18-22" with median ~19.5"
+ * Updated Feb 23 ~11 AM — storm still producing heavy snow:
+ *
+ * HARD DATA:
+ * - CLINYC Feb 22 report: 0.0" Feb 21 + 8.8" Feb 22 = 8.8"
+ * - NWS storm total at 7 AM Feb 23: 15.1" (per ABC7, Fox5, amNY)
+ * - Snow still falling at up to 3"/hr in heavy bands as of 7:28 AM
+ * - Blizzard warning in effect through 6 PM Feb 23
+ *
+ * ESTIMATE for ~11 AM:
+ * - 15.1" at 7 AM + ~3-4 hours of continued moderate-heavy snow
+ * - Estimated 2-4" additional since 7 AM → ~17-19" on ground now
+ * - Storm expected to taper by late afternoon
+ *
+ * MARKET CHECK:
+ * - Kalshi >18" at 98-99¢, >20" at 82¢, >24" at 9¢
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // As of Feb 23 ~11 AM: storm still producing, estimated ~17.8" on ground
-    // CLINYC Feb 22 report: 8.8" (0.0 Feb 21 + 8.8 Feb 22)
-    // Feb 23 estimated: ~9" additional (heavy snow overnight + morning banding)
-    // Total on ground: ~17.8" with storm still going
-    nwsLow: 18,     // Near-certain floor given accumulation + remaining
-    nwsHigh: 24,    // Continued banding could push to 24"
-    nwsMedian: 19.5, // Best estimate: ~17.8 observed + 1-2" remaining today
+    // 15.1" observed at 7 AM + estimated 2-4" more since then + remaining today
+    nwsLow: 18,      // Conservative: 15.1 + 3" remaining (storm tapers fast)
+    nwsHigh: 24,     // Optimistic: continued heavy banding through afternoon
+    nwsMedian: 20,   // Best estimate: ~17-18" now + 2-3" more before storm ends
 
     // Mixing risk is LOW — all-snow event confirmed
     mixingRisk: "low",
@@ -318,9 +323,9 @@ export function getCurrentConditions(): CurrentConditions {
     // Track uncertainty is LOW — storm nearly over, observed data dominates
     trackUncertainty: "low",
 
-    // OBSERVED: CLINYC 8.8" through Feb 22 + estimated ~9" Feb 23 morning
-    // Feb 23 CLINYC report won't publish until Feb 24, so this is an estimate
-    observedSnowfall: 17.8,
+    // OBSERVED: 15.1" at 7 AM Feb 23 (NWS official) + estimated ~2-3" since 7 AM
+    // Using 17.5" as best estimate for "right now" (~11 AM)
+    observedSnowfall: 17.5,
 
     // Model spread minimal — storm nearly over
     modelSpread: 2,
