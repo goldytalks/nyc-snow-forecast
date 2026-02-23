@@ -8,6 +8,8 @@
  * 4. Separate calculations for Kalshi (over/under) and Polymarket (buckets)
  */
 
+import type { UnifiedForecastData } from "../data/fetchers";
+
 // Gamma distribution functions
 function gammaLn(z: number): number {
   const g = 7;
@@ -310,12 +312,19 @@ export function calculatePolymarketProbabilities(
  * MARKET CHECK:
  * - Kalshi >18" at 98-99¢, >20" at 82¢, >24" at 9¢
  */
-export function getCurrentConditions(): CurrentConditions {
+export function getCurrentConditions(data?: UnifiedForecastData): CurrentConditions {
+  // Use live observed snowfall if available, otherwise hardcoded fallback
+  const observedSnowfall = data?.observedSnowfall?.totalInches ?? 19.5;
+
+  // Derive NWS range: observed is the natural floor, remaining snow adds upside
+  const nwsLow = Math.max(data?.combined?.snowfallRange?.low ?? 18, observedSnowfall + 0.5);
+  const nwsHigh = Math.max(data?.combined?.snowfallRange?.high ?? 24, observedSnowfall + 3);
+  const nwsMedian = Math.round(((nwsLow + nwsHigh) / 2) * 10) / 10;
+
   return {
-    // 15.1" observed at 7 AM + estimated 2-4" more since then + remaining today
-    nwsLow: 18,      // Conservative: 15.1 + 3" remaining (storm tapers fast)
-    nwsHigh: 24,     // Optimistic: continued heavy banding through afternoon
-    nwsMedian: 20,   // Best estimate: ~17-18" now + 2-3" more before storm ends
+    nwsLow,
+    nwsHigh,
+    nwsMedian,
 
     // Mixing risk is LOW — all-snow event confirmed
     mixingRisk: "low",
@@ -323,9 +332,7 @@ export function getCurrentConditions(): CurrentConditions {
     // Track uncertainty is LOW — storm nearly over, observed data dominates
     trackUncertainty: "low",
 
-    // OBSERVED: 15.1" at 7 AM Feb 23 (NWS official) + estimated ~2-3" since 7 AM
-    // Using 17.5" as best estimate for "right now" (~11 AM)
-    observedSnowfall: 17.5,
+    observedSnowfall,
 
     // Model spread minimal — storm nearly over
     modelSpread: 2,

@@ -122,36 +122,9 @@ export function runForecastModelWithData(data: UnifiedForecastData): ForecastOut
  * - Higher mixing risk for coastal areas
  */
 function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOutput {
-  // Use manually-calibrated conditions as the authoritative floor.
-  // The NWS API now returns REMAINING snowfall (near-zero as storm ends),
-  // which produces nonsensical totals. Only allow NWS data to push HIGHER.
-  const baseline = getCurrentConditions();
-
-  const rawLow = data.combined.snowfallRange.low;
-  const rawHigh = data.combined.snowfallRange.high;
-
-  // NWS remaining + observed — but never below our calibrated baseline
-  const nwsTotalLow = Math.max(rawLow, baseline.observedSnowfall + 2);
-  const nwsTotalHigh = Math.max(rawHigh, baseline.observedSnowfall + 4);
-
-  const conditions = {
-    // Take the HIGHER of NWS-derived vs manually-calibrated values
-    nwsLow: Math.max(nwsTotalLow, baseline.nwsLow),
-    nwsHigh: Math.max(nwsTotalHigh, baseline.nwsHigh),
-    nwsMedian: Math.max(
-      Math.round(((Math.max(nwsTotalLow, baseline.nwsLow) + Math.max(nwsTotalHigh, baseline.nwsHigh)) / 2) * 10) / 10,
-      baseline.nwsMedian
-    ),
-    mixingRisk: baseline.mixingRisk,
-    trackUncertainty: baseline.trackUncertainty,
-    observedSnowfall: baseline.observedSnowfall,
-    modelSpread: Math.max(
-      baseline.modelSpread,
-      Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
-      Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam)
-    ),
-    feb24Expected: baseline.feb24Expected,
-  };
+  // getCurrentConditions now uses live observed snowfall from data
+  // and derives NWS range with observed as natural floor
+  const conditions = getCurrentConditions(data);
 
   const kalshiScenarios = generateImprovedScenarios(conditions);
   const polymarketScenarios = generatePolymarketScenarios(conditions);
@@ -214,8 +187,8 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
       nam: { value: data.modelEstimates.nam, trend: "steady" },
     },
     keyUncertainties: [
-      `CLINYC observed: ${conditions.observedSnowfall}" (0.0" Feb 21 + 8.8" Feb 22)`,
-      `Storm winding down Feb 23 — remaining snowfall uncertain (~3-11")`,
+      `Observed snowfall: ${conditions.observedSnowfall}" (source: ${data.observedSnowfall?.source ?? 'hardcoded'}, updated: ${data.observedSnowfall?.lastUpdated ?? 'N/A'})`,
+      `Daily breakdown: ${data.observedSnowfall?.dailyBreakdown ? Object.entries(data.observedSnowfall.dailyBreakdown).map(([d, v]) => `${d}: ${v}"`).join(', ') : 'N/A'}`,
       `Total forecast range: ${conditions.nwsLow}-${conditions.nwsHigh}" (observed + remaining)`,
       `Kalshi (Feb 21-24, 4 days): settles on CLINYC, "strictly greater than" thresholds`,
       `Polymarket (Feb 21-23, 3 days): settles on NOAA "New Snow (IN)", bracket-based — EXCLUDES Feb 24`,

@@ -15,6 +15,11 @@ import {
   type AFDExtraction,
 } from "./nws-afd-parser";
 
+import {
+  fetchObservedSnowfall,
+  type ObservedSnowfall,
+} from "./nws-climate";
+
 export interface UnifiedForecastData {
   timestamp: string;
   sources: {
@@ -53,6 +58,8 @@ export interface UnifiedForecastData {
     ecmwf: number;
     nam: number;
   };
+  // Observed snowfall from NWS climate products
+  observedSnowfall?: ObservedSnowfall;
 }
 
 /**
@@ -104,10 +111,11 @@ export async function fetchAllNWSData(): Promise<UnifiedForecastData> {
   const timestamp = new Date().toISOString();
 
   // Fetch all sources in parallel
-  const [forecastResult, afdResult, gridpointResult] = await Promise.allSettled([
+  const [forecastResult, afdResult, gridpointResult, observedResult] = await Promise.allSettled([
     fetchNWSForecast(),
     fetchAndParseAFD(),
     fetchNWSGridpointData(),
+    fetchObservedSnowfall(), // Initial call without gridData; we'll retry with gridData below
   ]);
 
   // Process NWS Forecast
@@ -168,6 +176,25 @@ export async function fetchAllNWSData(): Promise<UnifiedForecastData> {
     };
   }
 
+  // Process observed snowfall
+  // If initial fetch returned hardcoded and we have gridpoint data, retry with gridpoint
+  let observedSnowfall: ObservedSnowfall | undefined;
+  if (observedResult.status === "fulfilled") {
+    observedSnowfall = observedResult.value;
+    // If we got hardcoded result but have gridpoint data, try again with it
+    if (observedSnowfall.source === "hardcoded" && nwsGridpointSource.data) {
+      const retryResult = await fetchObservedSnowfall(nwsGridpointSource.data);
+      if (retryResult.source !== "hardcoded") {
+        observedSnowfall = retryResult;
+      }
+    }
+  } else {
+    // Fetch failed entirely, try with gridpoint data
+    if (nwsGridpointSource.data) {
+      observedSnowfall = await fetchObservedSnowfall(nwsGridpointSource.data);
+    }
+  }
+
   // Combine data - prioritize AFD over point forecast
   const combinedSnowRange = afdData?.snowfallRange?.high
     ? afdData.snowfallRange
@@ -202,7 +229,8 @@ export async function fetchAllNWSData(): Promise<UnifiedForecastData> {
     },
     combined,
     modelEstimates,
+    observedSnowfall,
   };
 }
 
-export type { NWSPointForecast, NWSGridpointData, AFDExtraction };
+export type { NWSPointForecast, NWSGridpointData, AFDExtraction, ObservedSnowfall };
