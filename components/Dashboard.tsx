@@ -11,6 +11,7 @@ import { StatusIndicator } from "@/components/StatusIndicator";
 import { TimingPanel } from "@/components/TimingPanel";
 import { MarketAnalysis } from "@/components/MarketAnalysis";
 import { DataSourcesPanel } from "@/components/DataSourcesPanel";
+import { PolymarketBuckets } from "@/components/PolymarketBuckets";
 import { MapPin, Snowflake, RefreshCw, FileText } from "lucide-react";
 import Link from "next/link";
 import type { ForecastData } from "@/lib/types";
@@ -37,7 +38,7 @@ export function Dashboard({ initialData }: DashboardProps) {
             </h1>
             <p className="text-muted-foreground mt-1 flex items-center gap-2">
               <MapPin className="w-4 h-4" />
-              Central Park &bull; February 21-24, 2026
+              Central Park &bull; Kalshi: Feb 21-24 (CLINYC) &bull; Polymarket: Feb 21-23 (NOAA)
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -64,32 +65,51 @@ export function Dashboard({ initialData }: DashboardProps) {
           </div>
         </header>
 
-        {/* Main Grid */}
+        {/* Hero */}
         <div
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in"
+          className="animate-fade-in"
           style={{ animationDelay: "0.1s" }}
         >
-          {/* Hero Forecast */}
           <HeroForecast distribution={data.distribution} />
-
-          {/* Probability Chart */}
-          <ProbabilityChart strikeProbabilities={data.strikeProbabilities} />
         </div>
 
-        {/* Strike Probability Cards */}
-        <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-          <h2 className="text-lg font-medium mb-3 text-muted-foreground">
-            Threshold Probabilities
-          </h2>
-          <StrikeCards strikeProbabilities={data.strikeProbabilities} />
+        {/* Kalshi Section — Feb 21-24 */}
+        <div className="animate-fade-in space-y-4" style={{ animationDelay: "0.15s" }}>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-medium text-blue-400">
+              Kalshi Model
+            </h2>
+            <span className="text-xs text-muted-foreground bg-blue-500/10 border border-blue-500/20 rounded px-2 py-0.5">
+              Feb 21–24 &bull; 4 days &bull; CLINYC &bull; &gt; threshold
+            </span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ProbabilityChart strikeProbabilities={data.kalshiProbabilities || data.strikeProbabilities} />
+            <div>
+              <StrikeCards strikeProbabilities={data.kalshiProbabilities || data.strikeProbabilities} />
+            </div>
+          </div>
+        </div>
+
+        {/* Polymarket Section — Feb 21-23 */}
+        <div className="animate-fade-in space-y-4" style={{ animationDelay: "0.2s" }}>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-medium text-purple-400">
+              Polymarket Model
+            </h2>
+            <span className="text-xs text-muted-foreground bg-purple-500/10 border border-purple-500/20 rounded px-2 py-0.5">
+              Feb 21–23 &bull; 3 days &bull; NOAA &bull; brackets
+            </span>
+          </div>
+          <PolymarketBuckets probabilities={data.polymarketProbabilities || {}} />
         </div>
 
         {/* Market Analysis Section */}
         <div className="animate-fade-in" style={{ animationDelay: "0.25s" }}>
           <h2 className="text-lg font-medium mb-3 text-muted-foreground">
-            Market Analysis
+            Market Analysis &amp; Edge
           </h2>
-          <MarketAnalysis strikeProbabilities={data.strikeProbabilities} />
+          <MarketAnalysis strikeProbabilities={data.kalshiProbabilities || data.strikeProbabilities} />
         </div>
 
         {/* Secondary Grid */}

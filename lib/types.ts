@@ -42,6 +42,8 @@ export interface ForecastData {
   dataSourcesUsed: string[];
   distribution: Distribution;
   strikeProbabilities: Record<string, number>;
+  kalshiProbabilities?: Record<string, number>;
+  polymarketProbabilities?: Record<string, number>;
   scenarios: Scenario[];
   modelInputs: Record<string, ModelInput>;
   keyUncertainties: string[];
