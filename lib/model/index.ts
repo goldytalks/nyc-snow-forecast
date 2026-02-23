@@ -113,44 +113,35 @@ export function runForecastModelWithData(data: UnifiedForecastData): ForecastOut
  * - Higher mixing risk for coastal areas
  */
 function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOutput {
-  // CENTRAL PARK COASTAL CORRECTION
-  // The fetched NWS data is often regional (includes inland areas)
-  // Central Park is coastal, so we need to:
-  // 1. Lower the high end by ~2" (coastal mixing caps upside)
-  // 2. Anchor median closer to "around 10 inches" per NWS coastal guidance
-  // 3. Account for any observed snowfall
+  // Use manually-calibrated conditions as the authoritative floor.
+  // The NWS API now returns REMAINING snowfall (near-zero as storm ends),
+  // which produces nonsensical totals. Only allow NWS data to push HIGHER.
+  const baseline = getCurrentConditions();
 
   const rawLow = data.combined.snowfallRange.low;
   const rawHigh = data.combined.snowfallRange.high;
 
-  // CRITICAL: As of Feb 23, NWS API returns REMAINING snowfall, not total.
-  // CLINYC observed: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" total so far.
-  // Floor the NWS range to at least observed + minimal remaining.
-  const observedSnowfall = 8.8;
-
-  // The total can't be less than what's already fallen
-  const cappedLow = Math.max(rawLow, observedSnowfall + 2);   // At least observed + 2" more
-  const cappedHigh = Math.max(rawHigh, observedSnowfall + 4);  // At least observed + 4" more
-
-  // Mild coastal correction for Central Park vs surrounding areas
-  const coastalCorrectionFactor = 0.95;
-  const adjustedHigh = Math.max(cappedHigh, cappedLow + (cappedHigh - cappedLow) * coastalCorrectionFactor);
+  // NWS remaining + observed — but never below our calibrated baseline
+  const nwsTotalLow = Math.max(rawLow, baseline.observedSnowfall + 2);
+  const nwsTotalHigh = Math.max(rawHigh, baseline.observedSnowfall + 4);
 
   const conditions = {
-    nwsLow: cappedLow,
-    nwsHigh: adjustedHigh,
-    nwsMedian: Math.round(((cappedLow + adjustedHigh) / 2) * 10) / 10,
-    // Central Park has HIGHER mixing risk (coastal location)
-    // NWS AFD says "highest totals along the coast" for this storm
-    // Early rain/snow mix today but all-snow overnight through Monday
-    // Use actual mixing data from AFD rather than assuming medium
-    mixingRisk: (data.combined.mixingExpected ? "medium" : "low") as "low" | "medium" | "high",
-    trackUncertainty: "medium" as const,
-    observedSnowfall: observedSnowfall,
-    modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
-                 Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam),
-    // Feb 24 trace possibility — Kalshi includes it, Polymarket does not
-    feb24Expected: 0.5,
+    // Take the HIGHER of NWS-derived vs manually-calibrated values
+    nwsLow: Math.max(nwsTotalLow, baseline.nwsLow),
+    nwsHigh: Math.max(nwsTotalHigh, baseline.nwsHigh),
+    nwsMedian: Math.max(
+      Math.round(((Math.max(nwsTotalLow, baseline.nwsLow) + Math.max(nwsTotalHigh, baseline.nwsHigh)) / 2) * 10) / 10,
+      baseline.nwsMedian
+    ),
+    mixingRisk: baseline.mixingRisk,
+    trackUncertainty: baseline.trackUncertainty,
+    observedSnowfall: baseline.observedSnowfall,
+    modelSpread: Math.max(
+      baseline.modelSpread,
+      Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
+      Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam)
+    ),
+    feb24Expected: baseline.feb24Expected,
   };
 
   const kalshiScenarios = generateImprovedScenarios(conditions);
