@@ -99,7 +99,8 @@ export interface EdgeAnalysis {
  * Calculate edges for all markets
  */
 export function calculateAllEdges(
-  modelStrikeProbabilities: Record<string, number>
+  modelStrikeProbabilities: Record<string, number>,
+  polymarketProbabilities?: Record<string, number>
 ): EdgeAnalysis[] {
   const edges: EdgeAnalysis[] = [];
   const EDGE_THRESHOLD = 0.03; // 3% minimum to show direction
@@ -150,7 +151,8 @@ export function calculateAllEdges(
   }
 
   // Process Polymarket ranges
-  const rangeProbabilities = calculateRangeProbabilities(modelStrikeProbabilities);
+  // Use dedicated Polymarket probabilities if provided, otherwise derive from Kalshi strikes
+  const rangeProbabilities = polymarketProbabilities || calculateRangeProbabilities(modelStrikeProbabilities);
 
   for (const market of POLYMARKET_PRICES) {
     if (!market.range) continue;

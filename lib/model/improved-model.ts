@@ -97,6 +97,9 @@ export interface CurrentConditions {
 
   // Model spread (difference between highest and lowest)
   modelSpread: number;
+
+  // Expected additional snow on Feb 24 (counts for Kalshi but not Polymarket)
+  feb24Expected: number;
 }
 
 /**
@@ -120,28 +123,23 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
   const remainingHigh = Math.max(0, nwsHigh - observedSnowfall);
 
   // CENTRAL PARK CALIBRATED scenario probabilities
-  // NWS AFD (Feb 22, 3:32 PM): "20-24 inches for NYC and Long Island"
-  // "Isolated 30 inches possible in heaviest banding, mainly along coast"
-  // Storm is ACTIVELY HAPPENING — heavy snow phase imminent (~7pm)
-  // 2-3"/hr rates expected, blizzard conditions through Monday AM
-  // Market: >15" at 58-59c, >24" at 10-11c
+  // As of Feb 23 ~afternoon: storm winding down
+  // CLINYC: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" observed
+  // NWS API now returns REMAINING snowfall (~4-6.85"), not total
+  // nwsLow/nwsHigh/nwsMedian already adjusted to total (observed + remaining)
 
-  // Scenario 1: NWS Forecast Verifies (base case)
-  // Storm is happening, NWS very confident, base case dominates
-  const baseCaseProb = 0.48;
+  // Scenario 1: Base case — observed 8.8" + moderate remaining ~6" = ~15"
+  const baseCaseProb = 0.45;
 
-  // Scenario 2: High-End (banding, 30" possible per NWS)
-  // NWS explicitly mentions 30" possible along coast = CP
+  // Scenario 2: High-end — observed 8.8" + continued heavy banding = ~20"
   const highEndProb = mixingRisk === "high" ? 0.05 :
-                      mixingRisk === "medium" ? 0.08 : 0.12;
+                      mixingRisk === "medium" ? 0.10 : 0.15;
 
-  // Scenario 3: Moderate underperformance (lower ratios, less banding)
-  // NWS historically overpredicts — significant probability of 12-16" instead of 20-24"
-  const mixingProb = mixingRisk === "high" ? 0.28 :
-                     mixingRisk === "medium" ? 0.24 : 0.22;
+  // Scenario 3: Moderate underperformance — storm tapers quickly = ~12"
+  const mixingProb = mixingRisk === "high" ? 0.25 :
+                     mixingRisk === "medium" ? 0.22 : 0.20;
 
-  // Scenario 4: Significant underperformance (dry slot, unexpected mixing)
-  // Less likely since storm is underway, but NWS can still significantly miss
+  // Scenario 4: Significant underperformance — storm essentially done = ~10"
   const bustProb = 1 - baseCaseProb - highEndProb - mixingProb;
 
   return [
@@ -149,38 +147,46 @@ export function generateImprovedScenarios(conditions: CurrentConditions): Improv
       name: "NWS Forecast Verifies",
       probability: baseCaseProb,
       mean: remainingMedian + observedSnowfall,
-      // Tighter base case — blizzard warning = NWS high confidence
       stdDev: Math.max((remainingHigh - remainingLow) / 3.5, 2.0),
-      description: `NWS forecast: ${nwsLow}-${nwsHigh}" verifies`,
+      description: `Observed ${observedSnowfall}" + moderate remaining = ${nwsMedian}" total`,
     },
     {
       name: "High-End (All Snow)",
       probability: highEndProb,
-      // NWS says "isolated 30 inches possible" along coast
-      // Banding over city, high SLR, 2-3"/hr rates sustained
+      // Continued heavy banding on Feb 23 adds more than expected
       mean: remainingHigh + 4 + observedSnowfall,
       stdDev: 3.0,
-      description: "Banding over city, 30\" possible per NWS",
+      description: `Continued heavy banding, observed ${observedSnowfall}" + strong remaining`,
     },
     {
       name: "Moderate Underperformance",
       probability: mixingProb,
-      // Storm delivers but at lower end — 14-16" instead of 20-24"
-      // Lower SLR or less banding than forecast
-      mean: Math.max(remainingLow * 0.85, 12) + observedSnowfall,
+      // Storm tapers quickly, only a few more inches
+      mean: Math.max(remainingLow * 0.85, 3) + observedSnowfall,
       stdDev: 2.0,
-      description: "Lower ratios/less banding than forecast, 14-16\" range",
+      description: `Storm tapers quickly, ~${Math.round(Math.max(remainingLow * 0.85, 3) + observedSnowfall)}" total`,
     },
     {
       name: "Significant Underperformance",
       probability: bustProb,
-      // Unexpected dry slot or mixing — still snows but well short
-      // Floor is ~8-10" since storm is underway and can't fully bust
-      mean: Math.max(remainingLow * 0.6, 8) + observedSnowfall,
-      stdDev: 2.5,
-      description: "Dry slot or unexpected mixing, well short of forecast",
+      // Storm essentially done — just observed total + trace
+      mean: Math.max(observedSnowfall + 1, 9),
+      stdDev: 1.5,
+      description: `Storm done, ~${observedSnowfall}" observed + trace remaining`,
     },
   ];
+}
+
+/**
+ * Generate Polymarket-specific scenarios (Feb 21-23, excludes Feb 24)
+ * Shifts means down by feb24Expected since Polymarket settles on 3-day total
+ */
+export function generatePolymarketScenarios(conditions: CurrentConditions): ImprovedScenario[] {
+  const kalshiScenarios = generateImprovedScenarios(conditions);
+  return kalshiScenarios.map(s => ({
+    ...s,
+    mean: Math.max(s.mean - conditions.feb24Expected, 0.1),
+  }));
 }
 
 /**
@@ -278,69 +284,52 @@ export function calculatePolymarketProbabilities(
  *
  * EVENT: February 21-24, 2026 NYC Snowstorm (Blizzard Warning)
  *
- * MARKETS:
- * - Kalshi KXSNOWSTORM-26FEBNYC2: Feb 21-24 (4 days)
- * - Polymarket: Feb 21-23 (3 days)
+ * MARKETS & RESOLUTION (CRITICAL — different dates and sources!):
  *
- * RESOLUTION SOURCES (CRITICAL - these determine settlement):
- * - Kalshi: NWS Daily Climate Report (CLINYC)
- *   URL: https://forecast.weather.gov/product.php?site=OKX&product=CLI&issuedby=NYC
- * - Polymarket: NOAA "New Snow (IN)" for NY-Central Park Area
- *   URL: https://www.weather.gov/wrh/climate?wfo=okx
+ * KALSHI (KXSNOWSTORM-26FEBNYC2):
+ * - Date range: Feb 21-24, 2026 (4 days)
+ * - Source: NWS Daily Climate Report (CLINYC) for Central Park
+ * - URL: https://forecast.weather.gov/product.php?site=OKX&product=CLI&issuedby=NYC
+ * - Settlement: "Strictly greater than" threshold = YES (directional)
  *
- * Key NWS guidance (as of Feb 22, 2026 3:32 PM):
- * - BLIZZARD WARNING in effect for NYC (Feb 22-23)
- * - NWS AFD (3:32 PM): "20 to 24 inches for NYC and Long Island"
- * - "Isolated 30 inches possible in heaviest banding, mainly along coast"
- * - Snowfall rates 2-3 inches per hour expected in heavy bands
- * - Storm bulk: 7pm tonight through Monday morning
- * - Currently: light snow falling, ~1-2" accumulated, heavy snow imminent
- * - CLINYC Feb 21: 0.0" (storm hadn't started)
+ * POLYMARKET:
+ * - Date range: Feb 21-23, 2026 (3 days — EXCLUDES Feb 24!)
+ * - Source: NOAA "New Snow (IN)" for NY-Central Park Area
+ * - URL: https://www.weather.gov/wrh/climate?wfo=okx
+ * - Settlement: Bracket-based. Falls between brackets → resolves to higher bracket.
  *
- * RESOLUTION SOURCE (CRITICAL):
- * Kalshi settles on CLINYC (NWS Daily Climate Report for Central Park)
- * Total snowfall Feb 21-24, 2026 — "strictly greater than" threshold
- * CLINYC URL: forecast.weather.gov/product.php?site=OKX&product=CLI&issuedby=NYC
- *
- * CALIBRATION APPROACH:
- * NWS AFD upgraded to 20-24" for NYC, but NWS historically overpredicts by ~15-20%.
- * Apply ~10% discount: 14-22" range for Central Park with median ~18".
- * Market-implied median ~16-17" — model anchors between NWS and market.
+ * Updated Feb 23 afternoon — storm winding down:
+ * - CLINYC: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" observed total
+ * - Storm still producing light-moderate snow on Feb 23
+ * - NWS API now returns REMAINING snowfall, not total
+ * - Model anchors to observed 8.8" + estimated remaining
+ * - Total range: 12-20" with median ~15"
  */
 export function getCurrentConditions(): CurrentConditions {
   return {
-    // Central Park specific forecast (NWS OKX guidance as of Feb 22 PM)
-    //
-    // NWS AFD (Feb 22, 3:32 PM): "20 to 24 inches of snow for NYC and Long Island"
-    // "Isolated readings of 30 inches possible in heaviest banding, mainly along coast"
-    // Snowfall rates 2-3 inches per hour expected in heavy bands
-    // Storm bulk: 7pm tonight through Monday morning
-    // Currently: light snow falling, heavy snow starts ~7pm
-    //
-    // NWS says 20-24" but historically overpredicts by ~15-20%
-    // Market-implied median ~16-17" (>15" at 58.5c, >20" would be ~30-35c)
-    // Split the difference: anchor to 14-22" for Central Park
-    nwsLow: 14,
-    nwsHigh: 22,
-    nwsMedian: 18,
+    // As of Feb 23 ~afternoon: storm winding down
+    // CLINYC: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" observed total
+    // NWS API now returns REMAINING snowfall (~4-6.85"), not total
+    // We set nwsLow/nwsHigh/nwsMedian to TOTAL = observed + remaining estimate
+    nwsLow: 12,     // 8.8 observed + ~3" remaining (conservative)
+    nwsHigh: 20,    // 8.8 observed + ~11" remaining (optimistic, storm still producing)
+    nwsMedian: 15,  // 8.8 observed + ~6" remaining
 
-    // Mixing risk is LOW for this event
-    // Cold air locked in, all-snow event expected
-    // 31°F at Central Park, dropping further tonight
+    // Mixing risk is LOW — all-snow event confirmed
     mixingRisk: "low",
 
-    // Track uncertainty is VERY LOW
-    // Storm is actively happening, blizzard warning in effect
-    // NWS has very high confidence — white-out conditions expected
+    // Track uncertainty is LOW — storm nearly over, observed data dominates
     trackUncertainty: "low",
 
-    // OBSERVED: ~1-2" as of 4pm Feb 22
-    // Light snow since morning, heavy snow starts ~7pm
-    // CLINYC Feb 21 report: 0.0" (storm hadn't started)
-    observedSnowfall: 1.5,
+    // OBSERVED: CLINYC reports: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" total
+    observedSnowfall: 8.8,
 
-    // Model spread minimal — storm is happening
+    // Model spread minimal — storm winding down
     modelSpread: 2,
+
+    // Feb 24 expected: trace possibility (~85% chance of 0.0", storm ends by ~6 PM Feb 23)
+    // Kalshi includes Feb 24, Polymarket does not
+    feb24Expected: 0.5,
   };
 }
 

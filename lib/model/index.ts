@@ -14,6 +14,7 @@ import {
   calculateKalshiProbabilities,
   calculatePolymarketProbabilities,
   generateImprovedScenarios,
+  generatePolymarketScenarios,
   getCurrentConditions,
   type ImprovedScenario,
 } from "./improved-model";
@@ -122,22 +123,18 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
   const rawLow = data.combined.snowfallRange.low;
   const rawHigh = data.combined.snowfallRange.high;
 
-  // Sanity check: AFD parser picks up regional/tri-state numbers
-  // NWS AFD (Feb 22, 3:32 PM): "20-24 inches for NYC" — upgraded
-  // But NWS historically overpredicts by ~15-20% for CP
-  // Cap to CP-adjusted range
-  const cappedLow = Math.min(rawLow, 16);   // CP low-end capped at 16"
-  const cappedHigh = Math.min(rawHigh, 24);  // CP high-end capped at 24"
+  // CRITICAL: As of Feb 23, NWS API returns REMAINING snowfall, not total.
+  // CLINYC observed: 0.0" Feb 21 + 8.8" Feb 22 = 8.8" total so far.
+  // Floor the NWS range to at least observed + minimal remaining.
+  const observedSnowfall = 8.8;
+
+  // The total can't be less than what's already fallen
+  const cappedLow = Math.max(rawLow, observedSnowfall + 2);   // At least observed + 2" more
+  const cappedHigh = Math.max(rawHigh, observedSnowfall + 4);  // At least observed + 4" more
 
   // Mild coastal correction for Central Park vs surrounding areas
   const coastalCorrectionFactor = 0.95;
-  const adjustedHigh = Math.min(cappedHigh, cappedLow + (cappedHigh - cappedLow) * coastalCorrectionFactor);
-
-  // Central Park observed snowfall
-  // CLINYC Feb 21: 0.0" (storm hadn't started)
-  // Light snow falling since morning Feb 22, ~1-2" accumulated by 4pm
-  // Heavy snow phase starting ~7pm
-  const observedSnowfall = 1.5;
+  const adjustedHigh = Math.max(cappedHigh, cappedLow + (cappedHigh - cappedLow) * coastalCorrectionFactor);
 
   const conditions = {
     nwsLow: cappedLow,
@@ -152,13 +149,16 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     observedSnowfall: observedSnowfall,
     modelSpread: Math.max(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam) -
                  Math.min(data.modelEstimates.ecmwf, data.modelEstimates.gfs, data.modelEstimates.nam),
+    // Feb 24 trace possibility — Kalshi includes it, Polymarket does not
+    feb24Expected: 0.5,
   };
 
-  const improvedScenarios = generateImprovedScenarios(conditions);
-  const kalshiProbs = calculateKalshiProbabilities(improvedScenarios);
-  const polymarketProbs = calculatePolymarketProbabilities(improvedScenarios);
+  const kalshiScenarios = generateImprovedScenarios(conditions);
+  const polymarketScenarios = generatePolymarketScenarios(conditions);
+  const kalshiProbs = calculateKalshiProbabilities(kalshiScenarios);
+  const polymarketProbs = calculatePolymarketProbabilities(polymarketScenarios);
 
-  const mean = improvedScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
+  const mean = kalshiScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
   const now = new Date().toISOString();
 
   const scenarioColors: Record<string, string> = {
@@ -184,7 +184,7 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
     strikeProbabilities: kalshiProbs,
     kalshiProbabilities: kalshiProbs,
     polymarketProbabilities: polymarketProbs,
-    scenarios: improvedScenarios.map((s) => ({
+    scenarios: kalshiScenarios.map((s) => ({
       name: s.name,
       probability: Math.round(s.probability * 1000) / 1000,
       snowfallMean: s.mean,
@@ -205,11 +205,11 @@ function runForecastModelImprovedWithData(data: UnifiedForecastData): ForecastOu
       nam: { value: data.modelEstimates.nam, trend: "steady" },
     },
     keyUncertainties: [
-      `Central Park forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" (NWS AFD 3:32 PM: 20-24" for NYC)`,
-      `NWS: "Isolated 30 inches possible in heaviest banding, mainly along coast"`,
-      `Storm active: ~${conditions.observedSnowfall}" so far, heavy snow starts ~7pm`,
-      `Snowfall rates: 2-3"/hr expected in heavy bands, blizzard conditions overnight`,
-      `Resolution: CLINYC daily climate report (Central Park)`,
+      `CLINYC observed: ${conditions.observedSnowfall}" (0.0" Feb 21 + 8.8" Feb 22)`,
+      `Storm winding down Feb 23 — remaining snowfall uncertain (~3-11")`,
+      `Total forecast range: ${conditions.nwsLow}-${conditions.nwsHigh}" (observed + remaining)`,
+      `Kalshi (Feb 21-24, 4 days): settles on CLINYC, "strictly greater than" thresholds`,
+      `Polymarket (Feb 21-23, 3 days): settles on NOAA "New Snow (IN)", bracket-based — EXCLUDES Feb 24`,
     ],
     timing: {
       snowStarts: "2026-01-25T06:00:00Z",
@@ -337,13 +337,14 @@ export function runForecastModel(): ForecastOutput {
  */
 export function runForecastModelImproved(): ForecastOutput {
   const conditions = getCurrentConditions();
-  const improvedScenarios = generateImprovedScenarios(conditions);
+  const kalshiScenarios = generateImprovedScenarios(conditions);
+  const polymarketScenarios = generatePolymarketScenarios(conditions);
 
-  const kalshiProbs = calculateKalshiProbabilities(improvedScenarios);
-  const polymarketProbs = calculatePolymarketProbabilities(improvedScenarios);
+  const kalshiProbs = calculateKalshiProbabilities(kalshiScenarios);
+  const polymarketProbs = calculatePolymarketProbabilities(polymarketScenarios);
 
   // Calculate distribution statistics
-  const mean = improvedScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
+  const mean = kalshiScenarios.reduce((sum, s) => sum + s.probability * s.mean, 0);
 
   const now = new Date().toISOString();
 
@@ -371,7 +372,7 @@ export function runForecastModelImproved(): ForecastOutput {
     strikeProbabilities: kalshiProbs,
     kalshiProbabilities: kalshiProbs,
     polymarketProbabilities: polymarketProbs,
-    scenarios: improvedScenarios.map((s) => ({
+    scenarios: kalshiScenarios.map((s) => ({
       name: s.name,
       probability: Math.round(s.probability * 1000) / 1000,
       snowfallMean: s.mean,
@@ -392,11 +393,11 @@ export function runForecastModelImproved(): ForecastOutput {
       nam: { value: 11, trend: "steady" },
     },
     keyUncertainties: [
-      `NWS forecast: ${conditions.nwsLow}-${conditions.nwsHigh}" for Central Park`,
-      `BLIZZARD WARNING: 13-18" criteria met (high confidence event)`,
-      `Mixing risk: ${conditions.mixingRisk} - cold air locked in`,
-      `Models trending coastward = bullish for NYC totals`,
-      `Kalshi (Feb 21-24) vs Polymarket (Feb 21-23) - different date ranges!`,
+      `CLINYC observed: ${conditions.observedSnowfall}" (0.0" Feb 21 + 8.8" Feb 22)`,
+      `Storm winding down Feb 23 — remaining snowfall uncertain`,
+      `Kalshi (Feb 21-24, 4 days): settles on CLINYC, "strictly greater than" thresholds`,
+      `Polymarket (Feb 21-23, 3 days): settles on NOAA "New Snow (IN)", bracket-based — EXCLUDES Feb 24`,
+      `Different sources + date ranges = different settlement totals possible`,
     ],
     timing: {
       snowStarts: "2026-02-22T11:00:00Z",  // Sunday morning

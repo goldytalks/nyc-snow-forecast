@@ -140,9 +140,11 @@ export async function GET() {
   try {
     // Get current model probabilities
     let modelProbabilities: Record<string, number>;
+    let polymarketModelProbabilities: Record<string, number> | undefined;
     try {
       const forecast = await getCurrentForecast();
       modelProbabilities = forecast.strikeProbabilities;
+      polymarketModelProbabilities = forecast.polymarketProbabilities;
     } catch {
       // Fall back to defaults
       modelProbabilities = getModelProbabilities();
@@ -205,7 +207,7 @@ export async function GET() {
     if (!hasLiveKalshi && !hasLivePolymarket) {
       // Use manual prices
       usedManualPrices = true;
-      edges = calculateAllEdges(modelProbabilities);
+      edges = calculateAllEdges(modelProbabilities, polymarketModelProbabilities);
     } else {
       // Use live data
       edges = calculateEdgeOpportunities(modelProbabilities, marketData!);
